@@ -1,0 +1,72 @@
+
+export interface SRSMetadata {
+  n: number;          // Consecutive correct answers
+  ef: number;         // Ease Factor (starting at 2.5)
+  i: number;          // Interval in days
+  lastReview: number; // Timestamp
+  nextReview: number; // Timestamp
+}
+
+export interface MnemonicAssociation {
+  medicalTerm: string;
+  character: string;
+  explanation: string;
+  boundingBox?: [number, number, number, number];
+  shape?: 'rect' | 'ellipse';
+  srs?: SRSMetadata;  // Spaced Repetition state
+}
+
+export interface KeyFactsData {
+  topic: string;
+  facts: string[];
+}
+
+export interface MnemonicResponse extends KeyFactsData {
+  story: string;
+  associations: MnemonicAssociation[];
+  visualPrompt: string;
+}
+
+export interface SavedStory extends MnemonicResponse {
+  id: string;
+  createdAt: number;
+  imageData?: string;
+}
+
+export interface QuizQuestion {
+  associationIndex: number;
+  question: string;
+  options: string[];
+  correctOptionIndex: number;
+  explanation: string;
+}
+
+export interface DailyReviewItem {
+  storyId: string;
+  topic: string;
+  imageData: string | null;
+  association: MnemonicAssociation;
+  question: QuizQuestion;
+  relearnCount: number; // Track for re-learning loop
+}
+
+export type Language = 'en' | 'es';
+
+export interface AppState {
+  isLoading: boolean;
+  step: 'input' | 'generating_plan' | 'review_plan' | 'generating_image' | 'analyzing_image' | 'complete' | 'loading_quiz' | 'quiz' | 'error' | 'library' | 'daily_review';
+  error: string | null;
+  factsData: KeyFactsData | null;
+  data: MnemonicResponse | null;
+  imageData: string | null;
+  highlightedIndex: number | null;
+  savedStories: SavedStory[];
+  quizData: QuizQuestion[] | null;
+  language: Language;
+  reviewQueue: DailyReviewItem[];
+}
+
+export enum InputMode {
+  TEXT = 'TEXT',
+  PDF = 'PDF'
+}

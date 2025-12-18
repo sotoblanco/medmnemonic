@@ -1,0 +1,5 @@
+{
+  "name": "MediMnemonic: Visual Learning Assistant",
+  "description": "A powerful educational tool for medical students that converts complex medical text or PDFs into memorable stories and generated 'picmonic' style visual aids using Gemini AI.",
+  "requestFramePermissions": []
+}
