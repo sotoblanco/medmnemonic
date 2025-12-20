@@ -5,10 +5,15 @@ from typing import List, Optional
 from . import sql_models, models
 
 async def create_user(session: AsyncSession, user_data: dict) -> sql_models.User:
-    # Check if user exists
+    # Check if user exists (username)
     existing_user = await get_user_by_username(session, user_data['username'])
     if existing_user:
-        raise ValueError("User already exists")
+        raise ValueError("Username already exists")
+
+    # Check if user exists (email)
+    existing_email = await get_user_by_email(session, user_data['email'])
+    if existing_email:
+        raise ValueError("Email already registered")
 
     new_user = sql_models.User(**user_data)
     session.add(new_user)
@@ -18,6 +23,10 @@ async def create_user(session: AsyncSession, user_data: dict) -> sql_models.User
 
 async def get_user_by_username(session: AsyncSession, username: str) -> Optional[sql_models.User]:
     result = await session.execute(select(sql_models.User).where(sql_models.User.username == username))
+    return result.scalars().first()
+
+async def get_user_by_email(session: AsyncSession, email: str) -> Optional[sql_models.User]:
+    result = await session.execute(select(sql_models.User).where(sql_models.User.email == email))
     return result.scalars().first()
 
 async def get_stories(session: AsyncSession, user_id: str) -> List[sql_models.SavedStory]:
