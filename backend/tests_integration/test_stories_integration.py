@@ -5,7 +5,7 @@ from httpx import AsyncClient
 async def get_auth_headers(client, username="storyuser"):
     # Register
     await client.post(
-        "/auth/register",
+        "/api/auth/register",
         json={
             "username": username,
             "email": f"{username}@test.com",
@@ -14,7 +14,7 @@ async def get_auth_headers(client, username="storyuser"):
     )
     # Login
     res = await client.post(
-        "/auth/token",
+        "/api/auth/token",
         data={"username": username, "password": "password"}
     )
     token = res.json()["access_token"]
@@ -42,12 +42,12 @@ async def test_create_and_get_story(client: AsyncClient):
     }
     
     # Create
-    res = await client.post("/stories", json=story_payload, headers=headers)
+    res = await client.post("/api/stories", json=story_payload, headers=headers)
     assert res.status_code == 201
     assert res.json()["id"] == "manual-id-1"
     
     # Get List
-    res = await client.get("/stories", headers=headers)
+    res = await client.get("/api/stories", headers=headers)
     assert res.status_code == 200
     stories = res.json()
     assert len(stories) == 1
@@ -74,7 +74,7 @@ async def test_srs_review(client: AsyncClient):
         "visualPrompt": "VP",
         "createdAt": 1000
     }
-    await client.post("/stories", json=story_payload, headers=headers)
+    await client.post("/api/stories", json=story_payload, headers=headers)
     
     # Review with quality 5 (Perfect)
     # Association index 0
@@ -83,7 +83,7 @@ async def test_srs_review(client: AsyncClient):
         "quality": 5
     }
     
-    res = await client.post("/stories/srs-story/review", json=review_payload, headers=headers)
+    res = await client.post("/api/stories/srs-story/review", json=review_payload, headers=headers)
     assert res.status_code == 200
     updated_story = res.json()
     
@@ -108,12 +108,12 @@ async def test_delete_story(client: AsyncClient):
         "visualPrompt": "V",
         "createdAt": 1
     }
-    await client.post("/stories", json=story_payload, headers=headers)
+    await client.post("/api/stories", json=story_payload, headers=headers)
     
     # Delete
-    res = await client.delete("/stories/del-story", headers=headers)
+    res = await client.delete("/api/stories/del-story", headers=headers)
     assert res.status_code == 204
     
     # Verify gone
-    res = await client.get("/stories/del-story", headers=headers)
+    res = await client.get("/api/stories/del-story", headers=headers)
     assert res.status_code == 404

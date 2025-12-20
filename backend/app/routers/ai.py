@@ -12,7 +12,7 @@ from ..models import (
     RegenerateVisualPromptRequest, RegenerateVisualPromptResponse,
     GenerateImageRequest, GenerateImageResponse,
     AnalyzeImageRequest, MnemonicAssociation,
-    GenerateQuizRequest, QuizQuestion,
+    GenerateQuizRequest, QuizQuestion, QuizList,
     GenerateSpeechRequest, GenerateSpeechResponse
 )
 
@@ -71,7 +71,7 @@ async def generate_mnemonic(request: GenerateMnemonicRequest):
 
     try:
         response = client.models.generate_content(
-            model="gemini-3-flash-preview", # Using 2.0 as 2.5 might not be public/valid in this environment yet, reverting to safe default unless user specified
+            model="gemini-2.0-flash",
             contents=[types.Content(parts=parts)],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -161,7 +161,7 @@ async def regenerate_visual_prompt(request: RegenerateVisualPromptRequest):
     """
     try:
         response = client.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-2.0-flash",
             contents=[types.Content(parts=[types.Part.from_text(text=prompt)])],
             config=types.GenerateContentConfig(response_mime_type="text/plain")
         )
@@ -245,7 +245,7 @@ async def analyze_bounding_boxes(request: AnalyzeImageRequest):
         """
         
         response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
+            model="gemini-2.0-flash",
             contents=[
                 types.Content(parts=[
                     types.Part.from_bytes(data=base64.b64decode(clean_base64), mime_type="image/png"),
@@ -304,15 +304,21 @@ async def generate_quiz(request: GenerateQuizRequest):
     
     try:
         response = client.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-2.0-flash",
             contents=[types.Content(parts=[types.Part.from_text(text=context), types.Part.from_text(text=prompt)])],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=List[QuizQuestion]
+                response_schema=QuizList
             )
         )
         
-        questions = json.loads(response.text)
+        result_data = json.loads(response.text)
+        # Check if it was parsed as dict matching QuizList or just list if backend allows fuzzy match
+        # But we asked for QuizList schema so it should be dict with "questions" key
+        if isinstance(result_data, list):
+             questions = result_data
+        else:
+             questions = result_data.get('questions', [])
         
         # Shuffle options
         for q in questions:

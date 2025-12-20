@@ -59,6 +59,9 @@ class QuizQuestion(BaseModel):
     correctOptionIndex: int
     explanation: str
 
+class QuizList(BaseModel):
+    questions: List[QuizQuestion]
+
 # --- Request Bodies ---
 class GenerateMnemonicRequest(BaseModel):
     text: str

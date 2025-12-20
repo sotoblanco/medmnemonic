@@ -4,7 +4,7 @@ from httpx import AsyncClient
 @pytest.mark.asyncio
 async def test_register_user(client: AsyncClient):
     response = await client.post(
-        "/auth/register",
+        "/api/auth/register",
         json={
             "username": "testuser",
             "email": "test@example.com",
@@ -23,7 +23,7 @@ async def test_register_user(client: AsyncClient):
 async def test_login_user(client: AsyncClient):
     # Register first
     await client.post(
-        "/auth/register",
+        "/api/auth/register",
         json={
             "username": "loginuser",
             "email": "login@example.com",
@@ -33,7 +33,7 @@ async def test_login_user(client: AsyncClient):
     
     # Login
     response = await client.post(
-        "/auth/token",
+        "/api/auth/token",
         data={
             "username": "loginuser",
             "password": "mypassword"
@@ -48,7 +48,7 @@ async def test_login_user(client: AsyncClient):
 async def test_get_current_user_me(client: AsyncClient):
     # Register
     await client.post(
-        "/auth/register",
+        "/api/auth/register",
         json={
             "username": "meuser",
             "email": "me@example.com",
@@ -58,7 +58,7 @@ async def test_get_current_user_me(client: AsyncClient):
     
     # Login to get token
     login_res = await client.post(
-        "/auth/token",
+        "/api/auth/token",
         data={
             "username": "meuser",
             "password": "mypassword"
@@ -68,7 +68,7 @@ async def test_get_current_user_me(client: AsyncClient):
     
     # Get Me
     response = await client.get(
-        "/auth/me",
+        "/api/auth/me",
         headers={"Authorization": f"Bearer {token}"}
     )
     assert response.status_code == 200
