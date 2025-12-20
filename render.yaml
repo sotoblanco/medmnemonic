@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: medmnemonic
+    runtime: docker
+    plan: free
+    region: oregon
+    buildCommand: "" # Docker runtime doesn't need a build command
+    startCommand: "" # Docker runtime uses the CMD from Dockerfile
+    dockerContext: .
+    dockerfilePath: backend/Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: medmnemonic-db
+          property: connectionString
+      - key: GEMINI_API_KEY
+        sync: false # User will be prompted to enter this in dashboard
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+databases:
+  - name: medmnemonic-db
+    plan: free
+    region: oregon
+    databaseName: medmnemonic
+    user: medmnemonic_user

@@ -1,0 +1,586 @@
+openapi: 3.0.0
+info:
+  title: MedMnemonic API
+  description: Backend API for the MedMnemonic application, providing AI generation services and user data persistence.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # --- Auth Schemas ---
+    UserRegister:
+      type: object
+      required:
+        - email
+        - password
+        - username
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    UserLogin:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+
+    Token:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+
+    # --- Domain Schemas ---
+    SRSMetadata:
+      type: object
+      properties:
+        n:
+          type: integer
+          description: Consecutive correct answers
+        ef:
+          type: number
+          format: float
+          description: Ease Factor
+        i:
+          type: integer
+          description: Interval in days
+        lastReview:
+          type: integer
+          description: Timestamp of last review
+        nextReview:
+          type: integer
+          description: Timestamp of next review
+
+    MnemonicAssociation:
+      type: object
+      required:
+        - medicalTerm
+        - character
+        - explanation
+      properties:
+        medicalTerm:
+          type: string
+        character:
+          type: string
+        explanation:
+          type: string
+        boundingBox:
+          type: array
+          items:
+            type: number
+          minItems: 4
+          maxItems: 4
+          description: "[ymin, xmin, ymax, xmax]"
+        shape:
+          type: string
+          enum: [rect, ellipse]
+        srs:
+          $ref: '#/components/schemas/SRSMetadata'
+
+    MnemonicResponse:
+      type: object
+      required:
+        - topic
+        - facts
+        - story
+        - associations
+        - visualPrompt
+      properties:
+        topic:
+          type: string
+        facts:
+          type: array
+          items:
+            type: string
+        story:
+          type: string
+        associations:
+          type: array
+          items:
+            $ref: '#/components/schemas/MnemonicAssociation'
+        visualPrompt:
+          type: string
+
+    SavedStory:
+      allOf:
+        - $ref: '#/components/schemas/MnemonicResponse'
+        - type: object
+          required:
+            - id
+            - createdAt
+          properties:
+            id:
+              type: string
+            createdAt:
+              type: integer
+              description: Timestamp
+            imageData:
+              type: string
+              description: Base64 string or URL
+
+    QuizQuestion:
+      type: object
+      required:
+        - associationIndex
+        - question
+        - options
+        - correctOptionIndex
+        - explanation
+      properties:
+        associationIndex:
+          type: integer
+        question:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+        correctOptionIndex:
+          type: integer
+        explanation:
+          type: string
+
+    # --- Request Bodies ---
+    GenerateMnemonicRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+        pdfBase64:
+          type: string
+        language:
+          type: string
+          enum: [en, es]
+          default: en
+
+    RegenerateStoryRequest:
+      type: object
+      required:
+        - topic
+        - facts
+      properties:
+        topic:
+          type: string
+        facts:
+          type: array
+          items:
+            type: string
+        language:
+          type: string
+          enum: [en, es]
+          default: en
+
+    RegenerateVisualPromptRequest:
+      type: object
+      required:
+        - topic
+        - story
+        - associations
+      properties:
+        topic:
+          type: string
+        story:
+          type: string
+        associations:
+          type: array
+          items:
+            $ref: '#/components/schemas/MnemonicAssociation'
+        language:
+          type: string
+          enum: [en, es]
+          default: en
+
+    GenerateImageRequest:
+      type: object
+      required:
+        - visualPrompt
+      properties:
+        visualPrompt:
+          type: string
+
+    AnalyzeImageRequest:
+      type: object
+      required:
+        - imageBase64
+        - associations
+      properties:
+        imageBase64:
+          type: string
+        associations:
+          type: array
+          items:
+            $ref: '#/components/schemas/MnemonicAssociation'
+
+    GenerateQuizRequest:
+      type: object
+      required:
+        - mnemonicData
+      properties:
+        mnemonicData:
+          $ref: '#/components/schemas/MnemonicResponse'
+        language:
+          type: string
+          enum: [en, es]
+          default: en
+
+    GenerateSpeechRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+        language:
+          type: string
+          enum: [en, es]
+          default: en
+    
+    ReviewRequest:
+      type: object
+      required:
+        - associationIndex
+        - quality
+      properties:
+        associationIndex:
+          type: integer
+        quality:
+          type: integer
+          minimum: 0
+          maximum: 5
+          description: "0-5 scale. 0-2 fail, 3-5 pass."
+
+security:
+  - bearerAuth: []
+
+paths:
+  # --- Auth ---
+  /auth/register:
+    post:
+      summary: Register a new user
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegister'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /auth/token:
+    post:
+      summary: Login to get access token
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserLogin'
+      responses:
+        '200':
+          description: Access Token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+
+  /auth/me:
+    get:
+      summary: Get current user profile
+      tags: [Auth]
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  # --- AI ---
+  /ai/generate/mnemonic:
+    post:
+      summary: Generate a full mnemonic plan from text or PDF
+      tags: [AI]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateMnemonicRequest'
+      responses:
+        '200':
+          description: Generated mnemonic data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MnemonicResponse'
+
+  /ai/generate/story:
+    post:
+      summary: Regenerate story from facts
+      tags: [AI]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegenerateStoryRequest'
+      responses:
+        '200':
+          description: Updated story and associations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  story:
+                    type: string
+                  associations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MnemonicAssociation'
+                  visualPrompt:
+                    type: string
+
+  /ai/generate/visual-prompt:
+    post:
+      summary: Regenerate visual prompt
+      tags: [AI]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegenerateVisualPromptRequest'
+      responses:
+        '200':
+          description: Enhanced visual prompt
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  visualPrompt:
+                    type: string
+
+  /ai/generate/image:
+    post:
+      summary: Generate image from visual prompt
+      tags: [AI]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateImageRequest'
+      responses:
+        '200':
+          description: Generated image (Base64 or URL)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imageData:
+                    type: string
+
+  /ai/analyze/bounding-boxes:
+    post:
+      summary: Analyze image to find bounding boxes for characters
+      tags: [AI]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzeImageRequest'
+      responses:
+        '200':
+          description: Associations with updated bounding boxes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MnemonicAssociation'
+
+  /ai/generate/quiz:
+    post:
+      summary: Generate quiz questions
+      tags: [AI]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateQuizRequest'
+      responses:
+        '200':
+          description: List of quiz questions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QuizQuestion'
+
+  /ai/generate/speech:
+    post:
+      summary: Generate speech audio
+      tags: [AI]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateSpeechRequest'
+      responses:
+        '200':
+          description: Audio data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  audioData:
+                    type: string
+
+  # --- Stories (Data Persistence) ---
+  /stories:
+    get:
+      summary: Get all saved stories for the current user
+      tags: [Stories]
+      responses:
+        '200':
+          description: List of saved stories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SavedStory'
+    post:
+      summary: Save a new story
+      tags: [Stories]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavedStory'
+      responses:
+        '201':
+          description: Created story
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedStory'
+
+  /stories/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get a specific story
+      tags: [Stories]
+      responses:
+        '200':
+          description: Story details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedStory'
+        '404':
+          description: Story not found
+    put:
+      summary: Update a story (e.g. update associations, image)
+      tags: [Stories]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavedStory'
+      responses:
+        '200':
+          description: Updated story
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedStory'
+    delete:
+      summary: Delete a story
+      tags: [Stories]
+      responses:
+        '204':
+          description: Story deleted
+
+  /stories/{id}/review:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+    post:
+      summary: Submit a review for a specific association (SRS update)
+      tags: [Stories]
+      description: Updates the SRS metadata for a specific association within the story based on user feedback quality (0-5).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewRequest'
+      responses:
+        '200':
+          description: Review processed, returns updated SRS metadata or full story
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedStory'

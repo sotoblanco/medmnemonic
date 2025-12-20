@@ -1,22 +1,24 @@
 {
-  "name": "medimnemonic:-visual-learning-assistant",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "name": "medmnemonic",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "concurrently \"cd backend && uv run uvicorn app.main:app --reload --port 8000\" \"cd frontend && npm run dev\""
   },
-  "dependencies": {
-    "@google/genai": "^1.33.0",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sotoblanco/medmnemonic.git"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/sotoblanco/medmnemonic/issues"
+  },
+  "homepage": "https://github.com/sotoblanco/medmnemonic#readme",
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "concurrently": "^9.2.1"
   }
 }

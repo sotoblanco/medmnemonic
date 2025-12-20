@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import InputForm from './components/InputForm';
 import StoryDisplay from './components/StoryDisplay';
@@ -6,60 +5,15 @@ import ImageDisplay from './components/ImageDisplay';
 import LearningPath from './components/LearningPath';
 import PlanReview from './components/PlanReview';
 import QuizMode from './components/QuizMode';
+import AuthModal from './components/AuthModal';
 import { generateFullMnemonic, generateMnemonicImage, analyzeImageForBoundingBoxes, generateQuiz } from './services/geminiService';
-import { calculateNextSRS, isDue } from './services/srsService';
-import { AppState, MnemonicResponse, SavedStory, Language, DailyReviewItem, SRSMetadata } from './types';
+import { isDue } from './services/srsService';
+import { auth, stories as storyApi } from './services/api';
+import { AppState, MnemonicResponse, SavedStory, Language, DailyReviewItem, SRSMetadata, User } from './types';
 
 // Using small SVG data URLs as high-quality placeholders for demo images
 const DEMO_ACS_IMAGE = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgNDAwIDMwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2ZlZTJlMiIvPjx0ZXh0IHg9IjUwJSIgeT0iNDUlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIyOCIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiNiOTFjMWMiPkFDUyBTY2VuZTwvdGV4dD48dGV4dCB4PSI1MCUiIHk9IjYwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiM3ZjFkMWQiIklsbHVzdHJhdGlvbiBQcmV2aWV3PC90ZXh0Pjwvc3ZnPg==";
 const DEMO_RA_IMAGE = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgNDAwIDMwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2UwZjJmZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNDUlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIyOCIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiMwMzY5YTEiPlJBIFNjZW5lPC90ZXh0Pjx0ZXh0IHg9IjUwJSIgeT0iNjAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzA3NThhYSI+SWxsdXN0cmF0aW9uIFByZXZpZXc8L3RleHQ+PC9zdmc+";
-
-const DEMO_STORIES: SavedStory[] = [
-  {
-    id: 'demo-acs',
-    topic: 'Coronary Syndrome Symptoms',
-    facts: [
-      'Crushing substernal chest pain/pressure',
-      'Radiation to the left arm, neck, or jaw',
-      'Profuse sweating (Diaphoresis)',
-      'Shortness of breath (Dyspnea)',
-      'Nausea and lightheadedness'
-    ],
-    story: 'Imagine a giant "Coronary Crown" being crushed by a heavy substernal anchor. The anchor has a cold, heavy chain that wraps tightly around a knight\'s left arm and pulls upward against his jaw. The knight is standing in a sudden rainstorm of "Diaphoretic" droplets, soaking his armor. He is gasping for air as if the room is running out of oxygen, while a "Nauseous" chef nearby offers him a spinning plate that makes him feel lightheaded.',
-    associations: [
-      { medicalTerm: 'Chest Pain', character: 'Substernal Anchor', explanation: 'Represents the heavy, crushing pressure felt in the chest.', boundingBox: [20, 30, 60, 70], shape: 'rect' },
-      { medicalTerm: 'Radiating Pain', character: 'Chain on Arm/Jaw', explanation: 'Represents the common distribution of ischemic pain.', boundingBox: [10, 10, 50, 40], shape: 'ellipse' },
-      { medicalTerm: 'Diaphoresis', character: 'Rainstorm of Droplets', explanation: 'Visualizes the profuse sweating associated with sympathetic activation.', boundingBox: [5, 60, 40, 95], shape: 'rect' },
-      { medicalTerm: 'Dyspnea', character: 'Gasping Knight', explanation: 'Represents the shortness of breath caused by impaired cardiac output.', boundingBox: [30, 20, 80, 50], shape: 'rect' },
-      { medicalTerm: 'Nausea', character: 'Nauseous Chef', explanation: 'Represents the gastrointestinal symptoms often seen in inferior MIs.', boundingBox: [50, 70, 90, 95], shape: 'ellipse' }
-    ],
-    visualPrompt: 'A dramatic cartoon scene with a knight in silver armor. A massive iron anchor is pressing on his chest. A glowing blue chain goes from the anchor to his jaw and left arm. Water droplets are flying everywhere like rain. A chef in the background looks green and is holding a spinning tray.',
-    imageData: DEMO_ACS_IMAGE,
-    createdAt: 1700000000000
-  },
-  {
-    id: 'demo-ra',
-    topic: 'Rheumatoid Arthritis Symptoms',
-    facts: [
-      'Symmetrical small joint involvement (hands/feet)',
-      'Morning stiffness lasting more than 1 hour',
-      'MCP and PIP joint swelling',
-      'Swan neck deformity of fingers',
-      'Ulnar deviation of the digits'
-    ],
-    story: 'Two identical twin "Rheuma-Robots" (Symmetrical) are waking up in a "Morning" castle. They are both stuck in blocks of "1-Hour Ice" that take forever to melt before they can move. They both have bright glowing red rings around their knuckles (MCP and PIP joints). One robot has fingers that have bent into the shape of long, graceful swan necks, while the other robot is pointing all its fingers toward the "Ulnar" mountains in the distance.',
-    associations: [
-      { medicalTerm: 'Symmetry', character: 'Twin Robots', explanation: 'RA typically involves joints on both sides of the body equally.', boundingBox: [20, 10, 90, 90], shape: 'rect' },
-      { medicalTerm: 'Morning Stiffness', character: '1-Hour Ice', explanation: 'Stiffness in RA lasts significantly longer (>1hr) than in osteoarthritis.', boundingBox: [60, 5, 95, 45], shape: 'rect' },
-      { medicalTerm: 'Joint Swelling', character: 'Glowing Red Knuckles', explanation: 'Focuses on the MCP and PIP joints which are primary targets.', boundingBox: [40, 30, 60, 70], shape: 'ellipse' },
-      { medicalTerm: 'Swan Neck Deformity', character: 'Swan-shaped Fingers', explanation: 'Visualizes the characteristic hyperextension of PIP and flexion of DIP.', boundingBox: [10, 40, 40, 80], shape: 'ellipse' },
-      { medicalTerm: 'Ulnar Deviation', character: 'Pointing at Ulnar Mountains', explanation: 'Represents the outward drifting of the fingers at the MCP joints.', boundingBox: [70, 50, 98, 98], shape: 'rect' }
-    ],
-    visualPrompt: 'Two identical robots standing in a castle. They are half-frozen in ice blocks labeled "1 Hour". Their knuckles are glowing red. One robot has curved swan-like fingers. Their hands are slanted towards a mountain range in the background labeled "Ulnar".',
-    imageData: DEMO_RA_IMAGE,
-    createdAt: 1700000000001
-  }
-];
 
 const translations = {
   en: {
@@ -251,18 +205,6 @@ const translations = {
 };
 
 const App: React.FC = () => {
-  const loadSavedStories = (): SavedStory[] => {
-    try {
-      const saved = localStorage.getItem('medimnemonic_stories');
-      const userStories: SavedStory[] = saved ? JSON.parse(saved) : [];
-      const userStoriesNoDemos = userStories.filter(s => !s.id.startsWith('demo-'));
-      return [...DEMO_STORIES, ...userStoriesNoDemos];
-    } catch (e) {
-      console.error("Failed to load saved stories", e);
-      return DEMO_STORIES;
-    }
-  };
-
   const [state, setState] = useState<AppState>({
     isLoading: false,
     step: 'input',
@@ -271,10 +213,12 @@ const App: React.FC = () => {
     data: null,
     imageData: null,
     highlightedIndex: null,
-    savedStories: loadSavedStories(),
+    savedStories: [],
     quizData: null,
     language: 'en',
-    reviewQueue: []
+    reviewQueue: [],
+    user: null,
+    showAuthModal: false
   });
 
   const [activeReviewItem, setActiveReviewItem] = useState<DailyReviewItem | null>(null);
@@ -283,42 +227,54 @@ const App: React.FC = () => {
 
   const t = (key: keyof typeof translations['en']) => translations[state.language][key];
 
-  const saveToLocalStorage = (stories: SavedStory[]) => {
-    try {
-      const userOnly = stories.filter(s => !s.id.startsWith('demo-'));
-      localStorage.setItem('medimnemonic_stories', JSON.stringify(userOnly));
-    } catch (e) {
-      console.error("Failed to save stories", e);
-      if (e instanceof DOMException && e.name === 'QuotaExceededError') {
-          alert(t('storageFull'));
+  // Auth & Initial Data Load
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const user = await auth.me();
+        setState(prev => ({ ...prev, user, showAuthModal: false }));
+        // Load stories
+        const stories = await storyApi.list();
+        setState(prev => ({ ...prev, savedStories: stories }));
+      } catch (e) {
+        // Not authenticated
+        setState(prev => ({ ...prev, showAuthModal: true }));
       }
+    };
+    init();
+  }, []);
+
+  const handleUpdateSRS = async (storyId: string, associationIndex: number, quality: number) => {
+    try {
+      const updatedStory = await storyApi.review(storyId, associationIndex, quality);
+      setState(prev => ({
+        ...prev,
+        savedStories: prev.savedStories.map(s => s.id === storyId ? updatedStory : s)
+      }));
+    } catch (e) {
+      console.error("SRS Update failed", e);
     }
   };
 
-  const updateSRSState = (storyId: string, associationIndex: number, newSRS: SRSMetadata) => {
-    const updatedStories = state.savedStories.map(story => {
-      if (story.id === storyId) {
-        const newAssocs = [...story.associations];
-        newAssocs[associationIndex] = { ...newAssocs[associationIndex], srs: newSRS };
-        return { ...story, associations: newAssocs };
-      }
-      return story;
-    });
-    setState(prev => ({ ...prev, savedStories: updatedStories }));
-    saveToLocalStorage(updatedStories);
-  };
-
-  const handleUpdateAssociation = (index: number, box: [number, number, number, number] | undefined, shape: 'rect' | 'ellipse') => {
+  const handleUpdateAssociation = async (index: number, box: [number, number, number, number] | undefined, shape: 'rect' | 'ellipse') => {
     if (!state.data) return;
     const newAssocs = [...state.data.associations];
     newAssocs[index] = { ...newAssocs[index], boundingBox: box, shape };
     const updatedData = { ...state.data, associations: newAssocs };
     setState(prev => ({ ...prev, data: updatedData }));
-    
+
     // Auto-save if it's an existing story
     if ('id' in state.data) {
-        const updatedStories = state.savedStories.map(s => s.id === (state.data as SavedStory).id ? { ...s, associations: newAssocs } : s);
-        saveToLocalStorage(updatedStories);
+      try {
+        const story = state.data as SavedStory;
+        const updatedStory = await storyApi.update(story.id, { ...story, associations: newAssocs });
+        setState(prev => ({
+          ...prev,
+          savedStories: prev.savedStories.map(s => s.id === story.id ? updatedStory : s)
+        }));
+      } catch (e) {
+        console.error("Failed to update story", e);
+      }
     }
   };
 
@@ -352,10 +308,18 @@ const App: React.FC = () => {
       });
       const updatedData = { ...state.data, associations: updatedAssocs };
       setState(prev => ({ ...prev, data: updatedData }));
-      
+
       if ('id' in state.data) {
-          const updatedStories = state.savedStories.map(s => s.id === (state.data as SavedStory).id ? { ...s, associations: updatedAssocs } : s);
-          saveToLocalStorage(updatedStories);
+        try {
+          const story = state.data as SavedStory;
+          const updatedStory = await storyApi.update(story.id, { ...story, associations: updatedAssocs });
+          setState(prev => ({
+            ...prev,
+            savedStories: prev.savedStories.map(s => s.id === story.id ? updatedStory : s)
+          }));
+        } catch (e) {
+          console.error("Failed to update story", e);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -369,20 +333,20 @@ const App: React.FC = () => {
     try {
       const fullResponse: MnemonicResponse = await generateFullMnemonic(text, pdfBase64, state.language);
       setState(prev => ({ ...prev, isLoading: false, data: fullResponse, factsData: { topic: fullResponse.topic, facts: fullResponse.facts }, step: 'review_plan' }));
-    } catch (error) {
+    } catch (error: any) {
       console.error("Mnemonic generation process failed", error);
-      setState(prev => ({ ...prev, isLoading: false, step: 'error', error: t('failedToGenerate') }));
+      setState(prev => ({ ...prev, isLoading: false, step: 'error', error: error.message || t('failedToGenerate') }));
     }
   };
 
   const handleApprovePlan = async (updatedData: MnemonicResponse) => {
     setState(prev => ({ ...prev, isLoading: true, data: updatedData, step: 'generating_image' }));
     try {
-       const imageBase64 = await generateMnemonicImage(updatedData.visualPrompt);
-       setState(prev => ({ ...prev, imageData: imageBase64, isLoading: false, step: 'complete' }));
+      const imageBase64 = await generateMnemonicImage(updatedData.visualPrompt);
+      setState(prev => ({ ...prev, imageData: imageBase64, isLoading: false, step: 'complete' }));
     } catch (imgError) {
-        console.error("Image generation failed", imgError);
-        setState(prev => ({ ...prev, isLoading: false, step: 'complete', error: t('couldNotGenerateImage') }));
+      console.error("Image generation failed", imgError);
+      setState(prev => ({ ...prev, isLoading: false, step: 'complete', error: t('couldNotGenerateImage') }));
     }
   };
 
@@ -393,14 +357,23 @@ const App: React.FC = () => {
       const imageBase64 = await generateMnemonicImage(state.data.visualPrompt);
       setState(prev => {
         const newState = { ...prev, imageData: imageBase64, isLoading: false };
-        if (prev.data && 'id' in prev.data) {
-          const storyId = (prev.data as SavedStory).id;
-          const updatedStories = prev.savedStories.map(s => s.id === storyId ? { ...s, imageData: imageBase64 } : s);
-          newState.savedStories = updatedStories;
-          saveToLocalStorage(updatedStories);
-        }
+        // If story exists, update it
+        if (prev.data && 'id' in prev.data) return newState;
         return newState;
       });
+
+      if (state.data && 'id' in state.data) {
+        // Update remote
+        try {
+          const story = state.data as SavedStory;
+          const updatedStory = await storyApi.update(story.id, { ...story, imageData: imageBase64 });
+          setState(prev => ({
+            ...prev,
+            savedStories: prev.savedStories.map(s => s.id === story.id ? updatedStory : s)
+          }));
+        } catch (e) { console.error(e); }
+      }
+
     } catch (error) {
       console.error("Failed to regenerate image", error);
       alert(t('couldNotGenerateImage'));
@@ -411,35 +384,35 @@ const App: React.FC = () => {
   const handleStartDailyReview = async () => {
     setState(prev => ({ ...prev, isLoading: true, step: 'loading_quiz' }));
     try {
-        const dueItems: DailyReviewItem[] = [];
-        for (const story of state.savedStories) {
-            const storyQuizzes = await generateQuiz(story, state.language);
-            story.associations.forEach((assoc, idx) => {
-                if (isDue(assoc.srs)) {
-                    const q = storyQuizzes.find(sq => sq.associationIndex === idx);
-                    if (q) {
-                        dueItems.push({
-                            storyId: story.id,
-                            topic: story.topic,
-                            imageData: story.imageData || null,
-                            association: assoc,
-                            question: q,
-                            relearnCount: 0
-                        });
-                    }
-                }
-            });
-        }
-        const shuffledQueue = dueItems.sort(() => Math.random() - 0.5);
-        if (shuffledQueue.length > 0) {
-          setState(prev => ({ ...prev, isLoading: false, step: 'daily_review', reviewQueue: shuffledQueue, error: null }));
-          setActiveReviewItem(shuffledQueue[0]);
-        } else {
-          setState(prev => ({ ...prev, isLoading: false, step: 'library', error: "No due items today!" }));
-        }
+      const dueItems: DailyReviewItem[] = [];
+      for (const story of state.savedStories) {
+        const storyQuizzes = await generateQuiz(story, state.language);
+        story.associations.forEach((assoc, idx) => {
+          if (isDue(assoc.srs)) {
+            const q = storyQuizzes.find(sq => sq.associationIndex === idx);
+            if (q) {
+              dueItems.push({
+                storyId: story.id,
+                topic: story.topic,
+                imageData: story.imageData || null,
+                association: assoc,
+                question: q,
+                relearnCount: 0
+              });
+            }
+          }
+        });
+      }
+      const shuffledQueue = dueItems.sort(() => Math.random() - 0.5);
+      if (shuffledQueue.length > 0) {
+        setState(prev => ({ ...prev, isLoading: false, step: 'daily_review', reviewQueue: shuffledQueue, error: null }));
+        setActiveReviewItem(shuffledQueue[0]);
+      } else {
+        setState(prev => ({ ...prev, isLoading: false, step: 'library', error: "No due items today!" }));
+      }
     } catch (e) {
-        console.error("Failed to prepare daily review", e);
-        setState(prev => ({ ...prev, isLoading: false, step: 'library', error: t('failedQuiz') }));
+      console.error("Failed to prepare daily review", e);
+      setState(prev => ({ ...prev, isLoading: false, step: 'library', error: t('failedQuiz') }));
     }
   };
 
@@ -447,12 +420,12 @@ const App: React.FC = () => {
     if (!state.data) return;
     setState(prev => ({ ...prev, step: 'loading_quiz' }));
     try {
-        const quiz = await generateQuiz(state.data, state.language);
-        setState(prev => ({ ...prev, step: 'quiz', quizData: quiz, highlightedIndex: null }));
+      const quiz = await generateQuiz(state.data, state.language);
+      setState(prev => ({ ...prev, step: 'quiz', quizData: quiz, highlightedIndex: null }));
     } catch (e) {
-        console.error("Quiz generation failed", e);
-        alert(t('failedQuiz'));
-        setState(prev => ({ ...prev, step: 'complete' }));
+      console.error("Quiz generation failed", e);
+      alert(t('failedQuiz'));
+      setState(prev => ({ ...prev, step: 'complete' }));
     }
   };
 
@@ -461,17 +434,31 @@ const App: React.FC = () => {
     setActiveReviewItem(null);
   };
 
+  if (state.showAuthModal) {
+    return (
+      <AuthModal
+        onSuccess={async (user) => {
+          const stories = await storyApi.list();
+          setState(prev => ({ ...prev, user, showAuthModal: false, savedStories: stories }));
+        }}
+        onClose={() => { }}
+      />
+    );
+  }
+
   if (state.step === 'library') {
     return (
-      <LearningPath 
-        savedStories={state.savedStories} 
-        onSelectStory={(s) => setState(prev => ({ ...prev, step: 'complete', data: s, imageData: s.imageData || null }))} 
-        onBack={handleStartOver} 
-        onDelete={(id) => {
-          if (id.startsWith('demo-')) { alert("You cannot delete demo stories."); return; }
-          const updated = state.savedStories.filter(s => s.id !== id);
-          setState(prev => ({ ...prev, savedStories: updated }));
-          saveToLocalStorage(updated);
+      <LearningPath
+        savedStories={state.savedStories}
+        onSelectStory={(s) => setState(prev => ({ ...prev, step: 'complete', data: s, imageData: s.imageData || null }))}
+        onBack={handleStartOver}
+        onDelete={async (id) => {
+          try {
+            await storyApi.delete(id);
+            setState(prev => ({ ...prev, savedStories: prev.savedStories.filter(s => s.id !== id) }));
+          } catch (e) {
+            alert("Failed to delete story.");
+          }
         }}
         onStartReview={handleStartDailyReview}
         t={t}
@@ -484,22 +471,23 @@ const App: React.FC = () => {
       <header className="bg-white shadow-sm border-b border-stone-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={handleStartOver}>
-             <div className="bg-teal-700 p-2 rounded-lg shadow-sm">
-               <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-               </svg>
-             </div>
-             <h1 className="text-xl font-bold text-slate-800 tracking-tight">
-               {state.language === 'en' ? 'Medi' : 'Medi'}<span className="text-teal-700">{state.language === 'en' ? 'Mnemonic' : 'Mnemotecnia'}</span>
-             </h1>
+            <div className="bg-teal-700 p-2 rounded-lg shadow-sm">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+              </svg>
+            </div>
+            <h1 className="text-xl font-bold text-slate-800 tracking-tight">
+              {state.language === 'en' ? 'Medi' : 'Medi'}<span className="text-teal-700">{state.language === 'en' ? 'Mnemonic' : 'Mnemotecnia'}</span>
+            </h1>
           </div>
           <div className="flex items-center gap-4">
-             <button onClick={() => setState(prev => ({ ...prev, language: prev.language === 'en' ? 'es' : 'en' }))} className="text-sm font-bold text-teal-700 border border-teal-200 rounded-md px-3 py-1 hover:bg-teal-50 transition-colors">
-               {state.language === 'en' ? '🇪🇸 ES' : '🇺🇸 EN'}
-             </button>
-             <button onClick={() => setState(prev => ({ ...prev, step: 'library' }))} className="text-sm font-semibold text-slate-500 hover:text-teal-700 transition-colors">
-                {t('myLearningPath')}
-             </button>
+            {state.user && <span className="text-sm text-slate-500 font-medium">Hello, {state.user.username}</span>}
+            <button onClick={() => setState(prev => ({ ...prev, language: prev.language === 'en' ? 'es' : 'en' }))} className="text-sm font-bold text-teal-700 border border-teal-200 rounded-md px-3 py-1 hover:bg-teal-50 transition-colors">
+              {state.language === 'en' ? '🇪🇸 ES' : '🇺🇸 EN'}
+            </button>
+            <button onClick={() => setState(prev => ({ ...prev, step: 'library' }))} className="text-sm font-semibold text-slate-500 hover:text-teal-700 transition-colors">
+              {t('myLearningPath')}
+            </button>
           </div>
         </div>
       </header>
@@ -512,101 +500,109 @@ const App: React.FC = () => {
         )}
 
         {state.step === 'input' && (
-           <div className="flex flex-col items-center justify-center min-h-[60vh]">
-             <div className="text-center mb-10 max-w-2xl">
-               <h2 className="text-4xl font-extrabold text-slate-900 mb-4 tracking-tight leading-tight">
-                 {t('turnFactsIntoStories')} <br /> <span className="text-teal-700">{t('unforgettableStories')}</span>
-               </h2>
-               <p className="text-lg text-slate-600">{t('inputSubtitle')}</p>
-             </div>
-             <InputForm onSubmit={handleGenerateMnemonic} isLoading={state.isLoading} t={t} />
-           </div>
+          <div className="flex flex-col items-center justify-center min-h-[60vh]">
+            <div className="text-center mb-10 max-w-2xl">
+              <h2 className="text-4xl font-extrabold text-slate-900 mb-4 tracking-tight leading-tight">
+                {t('turnFactsIntoStories')} <br /> <span className="text-teal-700">{t('unforgettableStories')}</span>
+              </h2>
+              <p className="text-lg text-slate-600">{t('inputSubtitle')}</p>
+            </div>
+            <InputForm onSubmit={handleGenerateMnemonic} isLoading={state.isLoading} t={t} />
+          </div>
         )}
 
         {state.step === 'review_plan' && state.data && (
-           <PlanReview data={state.data} onApprove={handleApprovePlan} onCancel={handleStartOver} t={t} language={state.language} />
+          <PlanReview data={state.data} onApprove={handleApprovePlan} onCancel={handleStartOver} t={t} language={state.language} />
         )}
 
         {(state.step === 'generating_plan' || (state.step === 'generating_image' && !state.imageData) || state.step === 'loading_quiz') && (
-            <div className="flex flex-col items-center justify-center min-h-[50vh] animate-fade-in">
-                <div className="w-24 h-24 mb-6 relative">
-                  <div className="absolute inset-0 border-4 border-stone-200 rounded-full"></div>
-                  <div className="absolute inset-0 border-4 border-teal-600 rounded-full border-t-transparent animate-spin"></div>
-                  <div className="absolute inset-0 flex items-center justify-center text-3xl">
-                    {state.step === 'loading_quiz' ? '📝' : '🧠'}
-                  </div>
-                </div>
-                <h3 className="text-2xl font-bold text-slate-800 mb-2">
-                  {state.step === 'generating_plan' ? t('developingPlan') : state.step === 'loading_quiz' ? t('generatingQuiz') : t('paintingMemory')}
-                </h3>
+          <div className="flex flex-col items-center justify-center min-h-[50vh] animate-fade-in">
+            <div className="w-24 h-24 mb-6 relative">
+              <div className="absolute inset-0 border-4 border-stone-200 rounded-full"></div>
+              <div className="absolute inset-0 border-4 border-teal-600 rounded-full border-t-transparent animate-spin"></div>
+              <div className="absolute inset-0 flex items-center justify-center text-3xl">
+                {state.step === 'loading_quiz' ? '📝' : '🧠'}
+              </div>
             </div>
+            <h3 className="text-2xl font-bold text-slate-800 mb-2">
+              {state.step === 'generating_plan' ? t('developingPlan') : state.step === 'loading_quiz' ? t('generatingQuiz') : t('paintingMemory')}
+            </h3>
+          </div>
         )}
 
         {state.step === 'daily_review' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-             <QuizMode 
-                isInterleaved 
-                reviewQueue={state.reviewQueue} 
-                t={t} 
-                onExit={() => setState(prev => ({ ...prev, step: 'library' }))} 
-                onUpdateSRS={updateSRSState} 
-                setHighlightIndex={(idx) => setState(prev => ({ ...prev, highlightedIndex: idx }))}
-                onCurrentItemChange={setActiveReviewItem}
-             />
-             <ImageDisplay 
-                imageData={activeReviewItem?.imageData || null} 
-                isLoading={false} 
-                topic={activeReviewItem?.topic} 
-                associations={activeReviewItem ? [activeReviewItem.association] : []} 
-                highlightedIndex={0} 
-                t={t} 
-             />
+            <QuizMode
+              isInterleaved
+              reviewQueue={state.reviewQueue}
+              t={t}
+              onExit={() => setState(prev => ({ ...prev, step: 'library' }))}
+              onUpdateSRS={handleUpdateSRS}
+              setHighlightIndex={(idx) => setState(prev => ({ ...prev, highlightedIndex: idx }))}
+              onCurrentItemChange={setActiveReviewItem}
+            />
+            <ImageDisplay
+              imageData={activeReviewItem?.imageData || null}
+              isLoading={false}
+              topic={activeReviewItem?.topic}
+              associations={activeReviewItem ? [activeReviewItem.association] : []}
+              highlightedIndex={0}
+              t={t}
+            />
           </div>
         )}
 
         {state.data && (state.step === 'complete' || state.step === 'quiz') && (
           <div className="animate-fade-in-up space-y-8">
-             <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-stone-200 shadow-sm">
-                <button onClick={handleStartOver} className="text-sm font-semibold text-slate-500 hover:text-teal-700 flex items-center px-2">
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-                  {t('newConcept')}
+            <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-stone-200 shadow-sm">
+              <button onClick={handleStartOver} className="text-sm font-semibold text-slate-500 hover:text-teal-700 flex items-center px-2">
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                {t('newConcept')}
+              </button>
+              <div className="flex items-center gap-4">
+                {state.step === 'complete' && (
+                  <button onClick={handleStartQuiz} className="inline-flex items-center px-4 py-2 border border-stone-200 text-sm font-semibold rounded-lg text-slate-700 bg-white hover:bg-stone-50 transition-all shadow-sm">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                    {t('takeQuiz')}
+                  </button>
+                )}
+                <button onClick={async () => {
+                  const newStory: SavedStory = { ...state.data!, id: Date.now().toString(), createdAt: Date.now(), imageData: state.imageData || undefined };
+                  // Backend Create
+                  try {
+                    const created = await storyApi.create(newStory);
+                    setState(prev => ({
+                      ...prev,
+                      savedStories: [created, ...prev.savedStories]
+                    }));
+                    alert(t('storySaved'));
+                  } catch (e) {
+                    console.error(e);
+                    alert("Failed to save story");
+                  }
+                }} className="inline-flex items-center px-5 py-2 border border-transparent text-sm font-bold rounded-lg shadow-sm text-white bg-teal-700 hover:bg-teal-800 transition-all">
+                  {t('save')}
                 </button>
-                <div className="flex items-center gap-4">
-                    {state.step === 'complete' && (
-                      <button onClick={handleStartQuiz} className="inline-flex items-center px-4 py-2 border border-stone-200 text-sm font-semibold rounded-lg text-slate-700 bg-white hover:bg-stone-50 transition-all shadow-sm">
-                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-                          {t('takeQuiz')}
-                      </button>
-                    )}
-                    <button onClick={() => {
-                        const newStory: SavedStory = { ...state.data!, id: Date.now().toString(), createdAt: Date.now(), imageData: state.imageData || undefined };
-                        const updated = [newStory, ...state.savedStories];
-                        setState(prev => ({ ...prev, savedStories: updated }));
-                        saveToLocalStorage(updated);
-                        alert(t('storySaved'));
-                    }} className="inline-flex items-center px-5 py-2 border border-transparent text-sm font-bold rounded-lg shadow-sm text-white bg-teal-700 hover:bg-teal-800 transition-all">
-                        {t('save')}
-                    </button>
-                </div>
-             </div>
+              </div>
+            </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {state.step === 'quiz' ? (
-                <QuizMode 
-                  quizData={state.quizData!} 
-                  t={t} 
-                  onExit={() => setState(prev => ({ ...prev, step: 'complete' }))} 
-                  onUpdateSRS={updateSRSState} 
-                  setHighlightIndex={(idx) => setState(prev => ({ ...prev, highlightedIndex: idx }))} 
+                <QuizMode
+                  quizData={state.quizData!}
+                  t={t}
+                  onExit={() => setState(prev => ({ ...prev, step: 'complete' }))}
+                  onUpdateSRS={handleUpdateSRS} // SRS Update from Quiz now uses handleUpdateSRS which calls API
+                  setHighlightIndex={(idx) => setState(prev => ({ ...prev, highlightedIndex: idx }))}
                 />
               ) : (
                 <StoryDisplay data={state.data} highlightedIndex={state.highlightedIndex} onHighlight={(i) => setState(prev => ({ ...prev, highlightedIndex: i }))} t={t} language={state.language} />
               )}
-              <ImageDisplay 
-                imageData={state.imageData} 
-                isLoading={state.isLoading} 
-                topic={state.data.topic} 
-                associations={state.data.associations} 
-                highlightedIndex={state.highlightedIndex} 
+              <ImageDisplay
+                imageData={state.imageData}
+                isLoading={state.isLoading}
+                topic={state.data.topic}
+                associations={state.data.associations}
+                highlightedIndex={state.highlightedIndex}
                 onUpdateAssociation={handleUpdateAssociation}
                 onDetect={handleDetect}
                 onDetectAll={handleDetectAll}

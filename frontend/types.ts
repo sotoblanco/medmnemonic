@@ -64,6 +64,14 @@ export interface AppState {
   quizData: QuizQuestion[] | null;
   language: Language;
   reviewQueue: DailyReviewItem[];
+  user: User | null;
+  showAuthModal: boolean;
+}
+
+export interface User {
+  id: string;
+  username: string;
+  email: string;
 }
 
 export enum InputMode {
