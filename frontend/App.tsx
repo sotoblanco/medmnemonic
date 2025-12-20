@@ -225,6 +225,11 @@ const App: React.FC = () => {
   const [detectingIndex, setDetectingIndex] = useState<number | null>(null);
   const [detectingAll, setDetectingAll] = useState(false);
 
+  const isAlreadySaved = useMemo(() => {
+    if (!state.data || !('id' in state.data)) return false;
+    return state.savedStories.some(s => s.id === (state.data as SavedStory).id);
+  }, [state.data, state.savedStories]);
+
   const t = (key: keyof typeof translations['en']) => translations[state.language][key];
 
   // Auth & Initial Data Load
@@ -566,22 +571,35 @@ const App: React.FC = () => {
                     {t('takeQuiz')}
                   </button>
                 )}
-                <button onClick={async () => {
-                  const newStory: SavedStory = { ...state.data!, id: Date.now().toString(), createdAt: Date.now(), imageData: state.imageData || undefined };
-                  // Backend Create
-                  try {
-                    const created = await storyApi.create(newStory);
-                    setState(prev => ({
-                      ...prev,
-                      savedStories: [created, ...prev.savedStories]
-                    }));
-                    alert(t('storySaved'));
-                  } catch (e) {
-                    console.error(e);
-                    alert("Failed to save story");
-                  }
-                }} className="inline-flex items-center px-5 py-2 border border-transparent text-sm font-bold rounded-lg shadow-sm text-white bg-teal-700 hover:bg-teal-800 transition-all">
-                  {t('save')}
+                <button
+                  disabled={isAlreadySaved || state.isLoading}
+                  onClick={async () => {
+                    if (isAlreadySaved || !state.data) return;
+
+                    const storyId = ('id' in state.data) ? (state.data as SavedStory).id : Date.now().toString();
+                    const newStory: SavedStory = {
+                      ...state.data!,
+                      id: storyId,
+                      createdAt: ('createdAt' in state.data) ? (state.data as SavedStory).createdAt : Date.now(),
+                      imageData: state.imageData || undefined
+                    };
+
+                    try {
+                      const created = await storyApi.create(newStory);
+                      setState(prev => ({
+                        ...prev,
+                        savedStories: [created, ...prev.savedStories],
+                        data: created // Update current view data to include the new ID
+                      }));
+                      alert(t('storySaved'));
+                    } catch (e) {
+                      console.error(e);
+                      alert("Failed to save story");
+                    }
+                  }}
+                  className={`inline-flex items-center px-5 py-2 border border-transparent text-sm font-bold rounded-lg shadow-sm text-white transition-all ${isAlreadySaved ? 'bg-stone-400 cursor-not-allowed' : 'bg-teal-700 hover:bg-teal-800'}`}
+                >
+                  {isAlreadySaved ? '✓ ' + t('save') + 'd' : t('save')}
                 </button>
               </div>
             </div>

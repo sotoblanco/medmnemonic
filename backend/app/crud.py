@@ -89,6 +89,6 @@ async def delete_story(session: AsyncSession, user_id: str, story_id: str) -> bo
     if not db_story:
         return False
     
-    await session.delete(db_story)
+    session.delete(db_story)
     await session.commit()
     return True
