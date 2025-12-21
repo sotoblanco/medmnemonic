@@ -8,7 +8,7 @@ import QuizMode from './components/QuizMode';
 import AuthModal from './components/AuthModal';
 import { generateFullMnemonic, generateMnemonicImage, analyzeImageForBoundingBoxes, generateQuiz } from './services/geminiService';
 import { isDue } from './services/srsService';
-import { auth, stories as storyApi } from './services/api';
+import { auth, stories as storyApi, playlists as playlistApi } from './services/api';
 import { AppState, MnemonicResponse, SavedStory, Language, DailyReviewItem, SRSMetadata, User } from './types';
 
 // Using small SVG data URLs as high-quality placeholders for demo images
@@ -107,7 +107,12 @@ const translations = {
     forgot: "Forgot",
     relearning: "Re-learning Loop",
     sessionSummary: "Session Summary",
-    regenerateImage: "Regenerate Image"
+    regenerateImage: "Regenerate Image",
+    playlists: "Playlists",
+    createPlaylist: "Create Playlist",
+    playlistName: "Playlist Name",
+    addToPlaylist: "Add to Playlist",
+    noPlaylists: "No playlists yet"
   },
   es: {
     appTitle: "MediMnemotecnia",
@@ -200,7 +205,12 @@ const translations = {
     forgot: "Olvidado",
     relearning: "Bucle de Re-aprendizaje",
     sessionSummary: "Resumen de la Sesión",
-    regenerateImage: "Regenerar Imagen"
+    regenerateImage: "Regenerar Imagen",
+    playlists: "Playlists",
+    createPlaylist: "Crear Playlist",
+    playlistName: "Nombre de la Playlist",
+    addToPlaylist: "Agregar a Playlist",
+    noPlaylists: "Aún no hay playlists"
   }
 };
 
@@ -214,6 +224,7 @@ const App: React.FC = () => {
     imageData: null,
     highlightedIndex: null,
     savedStories: [],
+    playlists: [],
     quizData: null,
     language: 'en',
     reviewQueue: [],
@@ -238,9 +249,12 @@ const App: React.FC = () => {
       try {
         const user = await auth.me();
         setState(prev => ({ ...prev, user, showAuthModal: false }));
-        // Load stories
-        const stories = await storyApi.list();
-        setState(prev => ({ ...prev, savedStories: stories }));
+        // Load stories and playlists
+        const [stories, playlists] = await Promise.all([
+          storyApi.list(),
+          playlistApi.list()
+        ]);
+        setState(prev => ({ ...prev, savedStories: stories, playlists: playlists }));
       } catch (e) {
         // Not authenticated
         setState(prev => ({ ...prev, showAuthModal: true }));
@@ -443,8 +457,8 @@ const App: React.FC = () => {
     return (
       <AuthModal
         onSuccess={async (user) => {
-          const stories = await storyApi.list();
-          setState(prev => ({ ...prev, user, showAuthModal: false, savedStories: stories }));
+          const [stories, playlists] = await Promise.all([storyApi.list(), playlistApi.list()]);
+          setState(prev => ({ ...prev, user, showAuthModal: false, savedStories: stories, playlists: playlists }));
         }}
         onClose={() => { }}
       />
@@ -455,6 +469,7 @@ const App: React.FC = () => {
     return (
       <LearningPath
         savedStories={state.savedStories}
+        playlists={state.playlists}
         onSelectStory={(s) => setState(prev => ({ ...prev, step: 'complete', data: s, imageData: s.imageData || null }))}
         onBack={handleStartOver}
         onDelete={async (id) => {
@@ -466,10 +481,41 @@ const App: React.FC = () => {
           }
         }}
         onStartReview={handleStartDailyReview}
+        onCreatePlaylist={async (name) => {
+          try {
+            const created = await playlistApi.create({ name });
+            setState(prev => ({ ...prev, playlists: [...prev.playlists, created] }));
+          } catch (e) { alert("Failed to create playlist"); }
+        }}
+        onDeletePlaylist={async (id) => {
+          try {
+            await playlistApi.delete(id);
+            setState(prev => ({ ...prev, playlists: prev.playlists.filter(p => p.id !== id) }));
+          } catch (e) { alert("Failed to delete playlist"); }
+        }}
+        onAddToPlaylist={async (pId, sId) => {
+          try {
+            await playlistApi.addStory(pId, sId);
+            setState(prev => ({
+              ...prev,
+              playlists: prev.playlists.map(p => p.id === pId ? { ...p, story_ids: [...p.story_ids, sId] } : p)
+            }));
+          } catch (e) { alert("Failed to add to playlist"); }
+        }}
+        onRemoveFromPlaylist={async (pId, sId) => {
+          try {
+            await playlistApi.removeStory(pId, sId);
+            setState(prev => ({
+              ...prev,
+              playlists: prev.playlists.map(p => p.id === pId ? { ...p, story_ids: p.story_ids.filter(id => id !== sId) } : p)
+            }));
+          } catch (e) { alert("Failed to remove from playlist"); }
+        }}
         t={t}
       />
     );
   }
+
 
   return (
     <div className="min-h-screen bg-stone-50 text-slate-800 font-sans">

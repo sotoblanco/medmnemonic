@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
-from .routers import auth, stories, ai
+from .routers import auth, stories, ai, playlists
 from .database import engine, Base
 from . import sql_models # Register models
 import os
@@ -34,6 +34,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api")
 app.include_router(stories.router, prefix="/api")
 app.include_router(ai.router, prefix="/api")
+app.include_router(playlists.router, prefix="/api")
 
 # Serve React App
 static_path = os.path.join(os.path.dirname(__file__), "static")

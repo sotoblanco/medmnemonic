@@ -33,6 +33,16 @@ export interface SavedStory extends MnemonicResponse {
   imageData?: string;
 }
 
+export interface Playlist {
+  id: string;
+  user_id: string;
+  name: string;
+  description?: string;
+  createdAt: number;
+  story_ids: string[];
+}
+
+
 export interface QuizQuestion {
   associationIndex: number;
   question: string;
@@ -61,11 +71,13 @@ export interface AppState {
   imageData: string | null;
   highlightedIndex: number | null;
   savedStories: SavedStory[];
+  playlists: Playlist[];
   quizData: QuizQuestion[] | null;
   language: Language;
   reviewQueue: DailyReviewItem[];
   user: User | null;
   showAuthModal: boolean;
+
 }
 
 export interface User {

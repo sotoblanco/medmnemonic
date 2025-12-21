@@ -51,4 +51,13 @@ export const stories = {
         request<any>(`/stories/${id}/review`, { method: 'POST', body: JSON.stringify({ associationIndex: index, quality }) }),
 };
 
+export const playlists = {
+    list: () => request<any[]>('/playlists'),
+    create: (data: any) => request<any>('/playlists', { method: 'POST', body: JSON.stringify(data) }),
+    get: (id: string) => request<any>(`/playlists/${id}`),
+    delete: (id: string) => request<void>(`/playlists/${id}`, { method: 'DELETE' }),
+    addStory: (id: string, storyId: string) => request<any>(`/playlists/${id}/stories/${storyId}`, { method: 'POST' }),
+    removeStory: (id: string, storyId: string) => request<any>(`/playlists/${id}/stories/${storyId}`, { method: 'DELETE' }),
+};
+
 export default request;

@@ -111,3 +111,19 @@ class GenerateSpeechResponse(BaseModel):
 class ReviewRequest(BaseModel):
     associationIndex: int
     quality: int = Field(..., ge=0, le=5)
+
+# --- Playlist Models ---
+class PlaylistBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class PlaylistCreate(PlaylistBase):
+    pass
+
+class Playlist(PlaylistBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    user_id: str
+    createdAt: int
+    story_ids: List[str] = []
+
