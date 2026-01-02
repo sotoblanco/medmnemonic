@@ -3,13 +3,15 @@ import InputForm from './components/InputForm';
 import StoryDisplay from './components/StoryDisplay';
 import ImageDisplay from './components/ImageDisplay';
 import LearningPath from './components/LearningPath';
+import Library from './components/Library';
+import AdminDashboard from './components/AdminDashboard';
 import PlanReview from './components/PlanReview';
 import QuizMode from './components/QuizMode';
 import AuthModal from './components/AuthModal';
 import { generateFullMnemonic, generateMnemonicImage, analyzeImageForBoundingBoxes, generateQuiz } from './services/geminiService';
 import { isDue } from './services/srsService';
-import { auth, stories as storyApi, playlists as playlistApi } from './services/api';
-import { AppState, MnemonicResponse, SavedStory, Language, DailyReviewItem, SRSMetadata, User } from './types';
+import { auth, stories as storyApi, playlists as playlistApi, curriculum as curriculumApi } from './services/api';
+import { AppState, MnemonicResponse, SavedStory, Language, DailyReviewItem, SRSMetadata, User, Concept } from './types';
 
 // Using small SVG data URLs as high-quality placeholders for demo images
 const DEMO_ACS_IMAGE = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgNDAwIDMwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2ZlZTJlMiIvPjx0ZXh0IHg9IjUwJSIgeT0iNDUlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIyOCIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiNiOTFjMWMiPkFDUyBTY2VuZTwvdGV4dD48dGV4dCB4PSI1MCUiIHk9IjYwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiM3ZjFkMWQiIklsbHVzdHJhdGlvbiBQcmV2aWV3PC90ZXh0Pjwvc3ZnPg==";
@@ -112,7 +114,9 @@ const translations = {
     createPlaylist: "Create Playlist",
     playlistName: "Playlist Name",
     addToPlaylist: "Add to Playlist",
-    noPlaylists: "No playlists yet"
+    noPlaylists: "No playlists yet",
+    curriculum: "Learning Path",
+    myLibrary: "Personal Library"
   },
   es: {
     appTitle: "MediMnemotecnia",
@@ -210,7 +214,9 @@ const translations = {
     createPlaylist: "Crear Playlist",
     playlistName: "Nombre de la Playlist",
     addToPlaylist: "Agregar a Playlist",
-    noPlaylists: "Aún no hay playlists"
+    noPlaylists: "Aún no hay playlists",
+    curriculum: "Ruta de Aprendizaje",
+    myLibrary: "Biblioteca Personal"
   }
 };
 
@@ -226,7 +232,7 @@ const App: React.FC = () => {
     savedStories: [],
     playlists: [],
     quizData: null,
-    language: 'en',
+    language: 'es',
     reviewQueue: [],
     user: null,
     showAuthModal: false
@@ -358,6 +364,27 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSelectConcept = async (concept: Concept) => {
+    // Check if user already has a story for this concept
+    const existingStory = state.savedStories.find(s => s.concept_id === concept.id);
+    if (existingStory) {
+      setState(prev => ({ ...prev, step: 'complete', data: existingStory, imageData: existingStory.imageData || null }));
+      return;
+    }
+
+    // Otherwise generate from facts
+    setState(prev => ({ ...prev, isLoading: true, step: 'generating_plan', error: null, highlightedIndex: null, factsData: { topic: concept.name, facts: concept.facts }, data: null, quizData: null }));
+    try {
+      const fullResponse: MnemonicResponse = await generateFullMnemonic(concept.name + ": " + concept.facts.join(". "), undefined, state.language);
+      // Link the concept ID to the data so it can be saved with it
+      const dataWithConcept = { ...fullResponse, concept_id: concept.id };
+      setState(prev => ({ ...prev, isLoading: false, data: dataWithConcept as any, step: 'review_plan' }));
+    } catch (error: any) {
+      console.error("Concept mnemonic generation failed", error);
+      setState(prev => ({ ...prev, isLoading: false, step: 'error', error: error.message || t('failedToGenerate') }));
+    }
+  };
+
   const handleApprovePlan = async (updatedData: MnemonicResponse) => {
     setState(prev => ({ ...prev, isLoading: true, data: updatedData, step: 'generating_image' }));
     try {
@@ -467,11 +494,11 @@ const App: React.FC = () => {
 
   if (state.step === 'library') {
     return (
-      <LearningPath
+      <Library
         savedStories={state.savedStories}
         playlists={state.playlists}
         onSelectStory={(s) => setState(prev => ({ ...prev, step: 'complete', data: s, imageData: s.imageData || null }))}
-        onBack={handleStartOver}
+        onBack={() => setState(prev => ({ ...prev, step: 'input' }))}
         onDelete={async (id) => {
           try {
             await storyApi.delete(id);
@@ -516,6 +543,25 @@ const App: React.FC = () => {
     );
   }
 
+  if (state.step === 'curriculum') {
+    return (
+      <LearningPath
+        onSelectConcept={handleSelectConcept}
+        onBack={() => setState(prev => ({ ...prev, step: 'input' }))}
+        t={t}
+      />
+    );
+  }
+
+  if (state.step === 'admin') {
+    return (
+      <AdminDashboard
+        onBack={() => setState(prev => ({ ...prev, step: 'input' }))}
+        t={t}
+      />
+    );
+  }
+
 
   return (
     <div className="min-h-screen bg-stone-50 text-slate-800 font-sans">
@@ -536,9 +582,17 @@ const App: React.FC = () => {
             <button onClick={() => setState(prev => ({ ...prev, language: prev.language === 'en' ? 'es' : 'en' }))} className="text-sm font-bold text-teal-700 border border-teal-200 rounded-md px-3 py-1 hover:bg-teal-50 transition-colors">
               {state.language === 'en' ? '🇪🇸 ES' : '🇺🇸 EN'}
             </button>
-            <button onClick={() => setState(prev => ({ ...prev, step: 'library' }))} className="text-sm font-semibold text-slate-500 hover:text-teal-700 transition-colors">
-              {t('myLearningPath')}
+            <button onClick={() => setState(prev => ({ ...prev, step: 'curriculum' }))} className="text-sm font-semibold text-teal-700 hover:underline transition-colors">
+              {t('curriculum') || 'Learning Path'}
             </button>
+            <button onClick={() => setState(prev => ({ ...prev, step: 'library' }))} className="text-sm font-semibold text-slate-500 hover:text-teal-700 transition-colors">
+              {t('myLibrary') || 'Personal Library'}
+            </button>
+            {state.user?.is_admin && (
+              <button onClick={() => setState(prev => ({ ...prev, step: 'admin' }))} className="text-sm font-bold text-amber-600 hover:text-amber-700 transition-colors">
+                Admin
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -623,15 +677,23 @@ const App: React.FC = () => {
                     if (isAlreadySaved || !state.data) return;
 
                     const storyId = ('id' in state.data) ? (state.data as SavedStory).id : Date.now().toString();
+                    const conceptId = (state.data as any).concept_id;
+
                     const newStory: SavedStory = {
                       ...state.data!,
                       id: storyId,
+                      concept_id: conceptId,
                       createdAt: ('createdAt' in state.data) ? (state.data as SavedStory).createdAt : Date.now(),
                       imageData: state.imageData || undefined
                     };
 
                     try {
                       const created = await storyApi.create(newStory);
+                      // If it was a curriculum concept, mark as completed
+                      if (conceptId) {
+                        await curriculumApi.updateProgress({ concept_id: conceptId, is_completed: true, last_accessed: Date.now() });
+                      }
+
                       setState(prev => ({
                         ...prev,
                         savedStories: [created, ...prev.savedStories],

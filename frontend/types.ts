@@ -64,7 +64,7 @@ export type Language = 'en' | 'es';
 
 export interface AppState {
   isLoading: boolean;
-  step: 'input' | 'generating_plan' | 'review_plan' | 'generating_image' | 'analyzing_image' | 'complete' | 'loading_quiz' | 'quiz' | 'error' | 'library' | 'daily_review';
+  step: 'input' | 'generating_plan' | 'review_plan' | 'generating_image' | 'analyzing_image' | 'complete' | 'loading_quiz' | 'quiz' | 'error' | 'library' | 'daily_review' | 'curriculum' | 'admin';
   error: string | null;
   factsData: KeyFactsData | null;
   data: MnemonicResponse | null;
@@ -84,9 +84,36 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  is_admin: boolean;
+}
+
+export interface Topic {
+  id: string;
+  name: string;
+  description?: string;
+  order: number;
+  concepts?: Concept[];
+}
+
+export interface Concept {
+  id: string;
+  topic_id: string;
+  name: string;
+  description?: string;
+  facts: string[];
+  order: number;
+}
+
+export interface UserProgress {
+  id: string;
+  user_id: string;
+  concept_id: string;
+  is_completed: boolean;
+  last_accessed: number;
 }
 
 export enum InputMode {
   TEXT = 'TEXT',
   PDF = 'PDF'
 }
+

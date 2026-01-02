@@ -16,6 +16,44 @@ class User(BaseModel):
     id: str
     username: str
     email: str
+    is_admin: bool = False
+
+# --- Learning Path Models ---
+class TopicBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    order: int = 0
+
+class TopicCreate(TopicBase):
+    pass
+
+class Topic(TopicBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+
+class ConceptBase(BaseModel):
+    topic_id: str
+    name: str
+    description: Optional[str] = None
+    facts: List[str]
+    order: int = 0
+
+class ConceptCreate(ConceptBase):
+    pass
+
+class Concept(ConceptBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+
+class UserProgressBase(BaseModel):
+    concept_id: str
+    is_completed: bool = False
+    last_accessed: int
+
+class UserProgress(UserProgressBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    user_id: str
 
 class Token(BaseModel):
     access_token: str

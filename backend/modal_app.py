@@ -24,6 +24,7 @@ image = (
         "python-jose[cryptography]>=3.5.0",
         "python-multipart>=0.0.21"
     )
+    .env({"DATABASE_URL": "sqlite+aiosqlite:////data/medmnemonic.db"})
     .add_local_dir("app", remote_path="/root/app")
 )
 
@@ -36,9 +37,6 @@ volume = modal.Volume.from_name("medmnemonic-data", create_if_missing=True)
     volumes={"/data": volume},
     # Load secrets from local .env file (e.g. GEMINI_API_KEY)
     secrets=[modal.Secret.from_dotenv()],
-    # Set the DATABASE_URL to use the persistent volume
-    # 4 slashes for absolute path: sqlite+aiosqlite:////data/medmnemonic.db
-    env={"DATABASE_URL": "sqlite+aiosqlite:////data/medmnemonic.db"}
 )
 @modal.asgi_app()
 def fastapi_app():

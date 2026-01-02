@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
-from .routers import auth, stories, ai, playlists
+from .routers import auth, stories, ai, playlists, admin, curriculum
 from .database import engine, Base
 from . import sql_models # Register models
 import os
@@ -12,6 +12,27 @@ import os
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        
+        # Migration: Add is_admin column if it doesn't exist
+        print("DEBUG: Attempting schema migration for is_admin...")
+        try:
+            from sqlalchemy import text
+            await conn.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0"))
+            print("DEBUG: Migration SUCCESS: Added is_admin column.")
+        except Exception as e:
+            # Column likely already exists
+            print(f"DEBUG: Migration NOTE: {e}")
+            pass
+            
+        # Migration: Add concept_id to saved_stories
+        print("DEBUG: Attempting schema migration for saved_stories.concept_id...")
+        try:
+            from sqlalchemy import text
+            await conn.execute(text("ALTER TABLE saved_stories ADD COLUMN concept_id VARCHAR"))
+            print("DEBUG: Migration SUCCESS: Added concept_id column.")
+        except Exception as e:
+             print(f"DEBUG: Migration NOTE: {e}")
+             pass
     yield
 
 app = FastAPI(
@@ -35,6 +56,8 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(stories.router, prefix="/api")
 app.include_router(ai.router, prefix="/api")
 app.include_router(playlists.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
+app.include_router(curriculum.router, prefix="/api")
 
 # Serve React App
 static_path = os.path.join(os.path.dirname(__file__), "static")

@@ -159,3 +159,116 @@ async def remove_story_from_playlist(session: AsyncSession, user_id: str, playli
     await session.commit()
     return True
 
+# --- Topic and Concept CRUD ---
+
+async def get_topics(session: AsyncSession) -> List[sql_models.Topic]:
+    result = await session.execute(select(sql_models.Topic).order_by(sql_models.Topic.order))
+    return list(result.scalars().all())
+
+async def get_topic(session: AsyncSession, topic_id: str) -> Optional[sql_models.Topic]:
+    result = await session.execute(
+        select(sql_models.Topic)
+        .where(sql_models.Topic.id == topic_id)
+        .options(selectinload(sql_models.Topic.concepts))
+    )
+    return result.scalars().first()
+
+async def create_topic(session: AsyncSession, topic_in: models.TopicCreate) -> sql_models.Topic:
+    db_topic = sql_models.Topic(**topic_in.model_dump())
+    session.add(db_topic)
+    await session.commit()
+    await session.refresh(db_topic)
+    return db_topic
+
+async def update_topic(session: AsyncSession, topic_id: str, topic_in: models.TopicBase) -> Optional[sql_models.Topic]:
+    db_topic = await get_topic(session, topic_id)
+    if not db_topic:
+        return None
+    for key, value in topic_in.model_dump().items():
+        setattr(db_topic, key, value)
+    await session.commit()
+    await session.refresh(db_topic)
+    return db_topic
+
+async def delete_topic(session: AsyncSession, topic_id: str) -> bool:
+    db_topic = await get_topic(session, topic_id)
+    if not db_topic:
+        return False
+    await session.delete(db_topic)
+    await session.commit()
+    return True
+
+async def get_concepts(session: AsyncSession, topic_id: str) -> List[sql_models.Concept]:
+    result = await session.execute(
+        select(sql_models.Concept)
+        .where(sql_models.Concept.topic_id == topic_id)
+        .order_by(sql_models.Concept.order)
+    )
+    return list(result.scalars().all())
+
+async def get_concept(session: AsyncSession, concept_id: str) -> Optional[sql_models.Concept]:
+    result = await session.execute(
+        select(sql_models.Concept)
+        .where(sql_models.Concept.id == concept_id)
+        .options(selectinload(sql_models.Concept.stories))
+    )
+    return result.scalars().first()
+
+async def create_concept(session: AsyncSession, concept_in: models.ConceptCreate) -> sql_models.Concept:
+    db_concept = sql_models.Concept(**concept_in.model_dump())
+    session.add(db_concept)
+    await session.commit()
+    await session.refresh(db_concept)
+    return db_concept
+
+async def update_concept(session: AsyncSession, concept_id: str, concept_in: models.ConceptBase) -> Optional[sql_models.Concept]:
+    db_concept = await get_concept(session, concept_id)
+    if not db_concept:
+        return None
+    for key, value in concept_in.model_dump().items():
+        setattr(db_concept, key, value)
+    await session.commit()
+    await session.refresh(db_concept)
+    return db_concept
+
+async def delete_concept(session: AsyncSession, concept_id: str) -> bool:
+    db_concept = await get_concept(session, concept_id)
+    if not db_concept:
+        return False
+    await session.delete(db_concept)
+    await session.commit()
+    return True
+
+# --- User Progress CRUD ---
+
+async def get_user_progress(session: AsyncSession, user_id: str, concept_id: str) -> Optional[sql_models.UserProgress]:
+    result = await session.execute(
+        select(sql_models.UserProgress)
+        .where(
+            sql_models.UserProgress.user_id == user_id,
+            sql_models.UserProgress.concept_id == concept_id
+        )
+    )
+    return result.scalars().first()
+
+async def update_user_progress(session: AsyncSession, user_id: str, progress_in: models.UserProgressBase) -> sql_models.UserProgress:
+    db_progress = await get_user_progress(session, user_id, progress_in.concept_id)
+    if not db_progress:
+        db_progress = sql_models.UserProgress(
+            **progress_in.model_dump(),
+            user_id=user_id
+        )
+        session.add(db_progress)
+    else:
+        for key, value in progress_in.model_dump().items():
+            setattr(db_progress, key, value)
+    
+    await session.commit()
+    await session.refresh(db_progress)
+    return db_progress
+
+async def get_all_user_progress(session: AsyncSession, user_id: str) -> List[sql_models.UserProgress]:
+    result = await session.execute(
+        select(sql_models.UserProgress).where(sql_models.UserProgress.user_id == user_id)
+    )
+    return list(result.scalars().all())

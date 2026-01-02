@@ -28,7 +28,12 @@ client = genai.Client(api_key=api_key)
 
 def get_language_instruction(lang: str) -> str:
     if lang == 'es':
-        return "IMPORTANT: Provide ALL output (Story, Facts, Explanations, Topic, Characters) in SPANISH. The JSON structure keys must remain in English, but the string values must be in Spanish."
+        return """
+        IMPORTANT: OUTPUT MUST BE IN SPANISH (ESPAÑOL).
+        - The internal JSON keys (like 'story', 'medicalTerm') MUST remain in English.
+        - ALL values, text, descriptions, story content, explanations, and terms MUST be in Spanish.
+        - The characters should have Spanish names or names that make sense in a Spanish pun context.
+        """
     return "Provide all output in English."
 
 @router.post("/generate/mnemonic", response_model=MnemonicResponse)
@@ -71,7 +76,7 @@ async def generate_mnemonic(request: GenerateMnemonicRequest):
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=[types.Content(parts=parts)],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -135,7 +140,7 @@ async def regenerate_story(request: RegenerateStoryRequest):
         }
 
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=[types.Content(parts=[types.Part.from_text(text=prompt)])],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -161,7 +166,7 @@ async def regenerate_visual_prompt(request: RegenerateVisualPromptRequest):
     """
     try:
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=[types.Content(parts=[types.Part.from_text(text=prompt)])],
             config=types.GenerateContentConfig(response_mime_type="text/plain")
         )
@@ -171,6 +176,10 @@ async def regenerate_visual_prompt(request: RegenerateVisualPromptRequest):
 
 @router.post("/generate/image", response_model=GenerateImageResponse)
 async def generate_image(request: GenerateImageRequest):
+    # If visualPrompt is in Spanish (which it likely is now), prompt the image gen to handle it
+    # or translate it. Modern models handle Spanish prompts well.
+    # We add a style instruction.
+    
     enhanced_prompt = f"""A vivid, cartoon-style educational illustration. 
     Subject: {request.visualPrompt}. 
     Style: Hand-drawn animation style, bright colors, bold outlines, caricature-like characters, humorous, clear visual metaphors. 
@@ -181,7 +190,7 @@ async def generate_image(request: GenerateImageRequest):
         # "gemini-2.5-flash-image" was in frontend, maybe "imagen-3.0-generate-001" or similar is available? 
         # Or standard gemini-pro-vision? No, that's for input.
         # Assuming the user has access to a model capable of images. 
-        # Using "imagen-3.0-generated-001" or "gemini-2.0-flash" if it supports it?
+        # Using "imagen-3.0-generated-001" or "gemini-2.5-flash" if it supports it?
         # IMPORTANT: Google Gen AI sdk `models.generate_images` is the method usually? 
         # Or `generate_content` for some?
         # The new SDK has `client.models.generate_image`?
@@ -245,7 +254,7 @@ async def analyze_bounding_boxes(request: AnalyzeImageRequest):
         """
         
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=[
                 types.Content(parts=[
                     types.Part.from_bytes(data=base64.b64decode(clean_base64), mime_type="image/png"),
@@ -304,7 +313,7 @@ async def generate_quiz(request: GenerateQuizRequest):
     
     try:
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=[types.Content(parts=[types.Part.from_text(text=context), types.Part.from_text(text=prompt)])],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -337,10 +346,17 @@ async def generate_quiz(request: GenerateQuizRequest):
 @router.post("/generate/speech", response_model=GenerateSpeechResponse)
 async def generate_speech(request: GenerateSpeechRequest):
     # This might require a specific model or permission
-    voice_name = 'Puck' if request.language == 'es' else 'Kore'
+    # 'Puck' is a good default, but maybe 'Fenrir' or others are better for deep voices, 
+    # 'Aoede' for female. Let's stick to Puck or maybe 'Kore' if neutral.
+    # Actually, for Spanish, we rely on the model detecting language or the text being Spanish.
+    voice_name = 'Puck' # Default
+    if request.language == 'es':
+         # Attempt to pick a voice that might sound better if available, 
+         # but standard voices often handle accents well.
+         pass
     
     # Note: TTS via API might assume specific models/endpoints
-    # "gemini-2.0-flash-exp" sometimes supports audio out?
+    # "gemini-2.5-flash-exp" sometimes supports audio out?
     # Or separate TTS endpoint?
     # The frontend code used: model: "gemini-2.5-flash-preview-tts"
     # We will try to map this.

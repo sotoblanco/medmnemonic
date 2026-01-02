@@ -60,4 +60,22 @@ export const playlists = {
     removeStory: (id: string, storyId: string) => request<any>(`/playlists/${id}/stories/${storyId}`, { method: 'DELETE' }),
 };
 
+export const curriculum = {
+    topics: () => request<any[]>('/curriculum/topics'),
+    getTopic: (id: string) => request<any>(`/curriculum/topics/${id}`),
+    getConcept: (id: string) => request<any>(`/curriculum/concepts/${id}`),
+    updateProgress: (data: any) => request<any>('/curriculum/progress', { method: 'POST', body: JSON.stringify(data) }),
+    getProgress: () => request<any[]>('/curriculum/progress'),
+};
+
+export const admin = {
+    createTopic: (data: any) => request<any>('/admin/topics', { method: 'POST', body: JSON.stringify(data) }),
+    updateTopic: (id: string, data: any) => request<any>(`/admin/topics/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteTopic: (id: string) => request<void>(`/admin/topics/${id}`, { method: 'DELETE' }),
+    createConcept: (data: any) => request<any>('/admin/concepts', { method: 'POST', body: JSON.stringify(data) }),
+    updateConcept: (id: string, data: any) => request<any>(`/admin/concepts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteConcept: (id: string) => request<void>(`/admin/concepts/${id}`, { method: 'DELETE' }),
+};
+
 export default request;
+
