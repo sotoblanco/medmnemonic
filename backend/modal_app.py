@@ -36,7 +36,7 @@ volume = modal.Volume.from_name("medmnemonic-data", create_if_missing=True)
     # Mount the volume to /data
     volumes={"/data": volume},
     # Load secrets from local .env file (e.g. GEMINI_API_KEY)
-    secrets=[modal.Secret.from_dotenv()],
+    secrets=[modal.Secret.from_dotenv()]
 )
 @modal.asgi_app()
 def fastapi_app():

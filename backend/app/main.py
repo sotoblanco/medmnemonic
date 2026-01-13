@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
-from .routers import auth, stories, ai, playlists, admin, curriculum
+from .routers import auth, stories, ai, playlists, curriculum
 from .database import engine, Base
 from . import sql_models # Register models
 import os
@@ -11,6 +11,11 @@ import os
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
+        # Enable WAL mode for better concurrency with SQLite
+        if "sqlite" in str(engine.url):
+            from sqlalchemy import text
+            await conn.execute(text("PRAGMA journal_mode=WAL;"))
+            
         await conn.run_sync(Base.metadata.create_all)
         
         # Migration: Add is_admin column if it doesn't exist
@@ -56,7 +61,6 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(stories.router, prefix="/api")
 app.include_router(ai.router, prefix="/api")
 app.include_router(playlists.router, prefix="/api")
-app.include_router(admin.router, prefix="/api")
 app.include_router(curriculum.router, prefix="/api")
 
 # Serve React App

@@ -24,6 +24,30 @@ async def get_concept(concept_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Concept not found")
     return db_concept
 
+@router.get("/concepts/{concept_id}/public_mnemonic", response_model=models.SavedStory)
+async def get_public_mnemonic(concept_id: str, db: AsyncSession = Depends(get_db)):
+    # Fetch a story linked to this concept and created by an admin
+    # We first find admins then search
+    # Or cleaner: join User table
+    from sqlalchemy import select
+    
+    stmt = (
+        select(sql_models.SavedStory)
+        .join(sql_models.User)
+        .where(
+            sql_models.SavedStory.concept_id == concept_id,
+            sql_models.User.is_admin == True
+        )
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    public_story = result.scalars().first()
+    
+    if not public_story:
+         raise HTTPException(status_code=404, detail="No public mnemonic found for this concept")
+    return public_story
+
+
 @router.post("/progress", response_model=models.UserProgress)
 async def update_progress(progress: models.UserProgressBase, db: AsyncSession = Depends(get_db), user: sql_models.User = Depends(auth.get_current_user)):
     return await crud.update_user_progress(db, user.id, progress)

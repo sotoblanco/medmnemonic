@@ -39,6 +39,7 @@ export const auth = {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams(data)
     }),
+    guest_login: () => request<{ access_token: string }>('/auth/guest', { method: 'POST' }),
     me: () => request<User>('/auth/me'),
 };
 
@@ -61,11 +62,12 @@ export const playlists = {
 };
 
 export const curriculum = {
-    topics: () => request<any[]>('/curriculum/topics'),
-    getTopic: (id: string) => request<any>(`/curriculum/topics/${id}`),
-    getConcept: (id: string) => request<any>(`/curriculum/concepts/${id}`),
-    updateProgress: (data: any) => request<any>('/curriculum/progress', { method: 'POST', body: JSON.stringify(data) }),
-    getProgress: () => request<any[]>('/curriculum/progress'),
+    topics: () => request<Topic[]>('/curriculum/topics'),
+    topic: (id: string) => request<Topic>(`/curriculum/topics/${id}`),
+    concept: (id: string) => request<Concept>(`/curriculum/concepts/${id}`),
+    getPublicMnemonic: (conceptId: string) => request<any>(`/curriculum/concepts/${conceptId}/public_mnemonic`),
+    updateProgress: (data: { concept_id: string, is_completed: boolean, last_accessed: number }) => request<UserProgress>(`/curriculum/progress`, { method: 'POST', body: JSON.stringify(data) }),
+    getProgress: () => request<UserProgress[]>('/curriculum/progress'),
 };
 
 export const admin = {

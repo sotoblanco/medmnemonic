@@ -40,6 +40,21 @@ const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
         }
     };
 
+    const handleGuestLogin = async () => {
+        setError('');
+        setLoading(true);
+        try {
+            const response = await auth.guest_login();
+            setToken(response.access_token);
+            const user = await auth.me();
+            onSuccess(user);
+        } catch (err: any) {
+            setError(err.message || 'Guest login failed');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
@@ -108,6 +123,24 @@ const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
                             {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
                         </button>
                     </form>
+
+                    <div className="relative my-6">
+                        <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-slate-200"></div>
+                        </div>
+                        <div className="relative flex justify-center text-sm">
+                            <span className="px-2 bg-white text-slate-500">Or continue with</span>
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={handleGuestLogin}
+                        disabled={loading}
+                        className="w-full py-3 px-4 bg-white border-2 border-slate-200 hover:border-teal-500 hover:text-teal-600 text-slate-700 font-bold rounded-lg transition-all mb-4"
+                    >
+                        Continue as Guest
+                    </button>
 
                     <div className="mt-6 text-center text-sm text-slate-500">
                         {isLogin ? "Don't have an account? " : "Already have an account? "}

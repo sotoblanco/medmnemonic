@@ -4,7 +4,6 @@ import StoryDisplay from './components/StoryDisplay';
 import ImageDisplay from './components/ImageDisplay';
 import LearningPath from './components/LearningPath';
 import Library from './components/Library';
-import AdminDashboard from './components/AdminDashboard';
 import PlanReview from './components/PlanReview';
 import QuizMode from './components/QuizMode';
 import AuthModal from './components/AuthModal';
@@ -12,6 +11,7 @@ import { generateFullMnemonic, generateMnemonicImage, analyzeImageForBoundingBox
 import { isDue } from './services/srsService';
 import { auth, stories as storyApi, playlists as playlistApi, curriculum as curriculumApi } from './services/api';
 import { AppState, MnemonicResponse, SavedStory, Language, DailyReviewItem, SRSMetadata, User, Concept } from './types';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Using small SVG data URLs as high-quality placeholders for demo images
 const DEMO_ACS_IMAGE = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiB2aWV3Qm94PSIwIDAgNDAwIDMwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iI2ZlZTJlMiIvPjx0ZXh0IHg9IjUwJSIgeT0iNDUlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIyOCIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiNiOTFjMWMiPkFDUyBTY2VuZTwvdGV4dD48dGV4dCB4PSI1MCUiIHk9IjYwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiM3ZjFkMWQiIklsbHVzdHJhdGlvbiBQcmV2aWV3PC90ZXh0Pjwvc3ZnPg==";
@@ -553,14 +553,6 @@ const App: React.FC = () => {
     );
   }
 
-  if (state.step === 'admin') {
-    return (
-      <AdminDashboard
-        onBack={() => setState(prev => ({ ...prev, step: 'input' }))}
-        t={t}
-      />
-    );
-  }
 
 
   return (
@@ -588,11 +580,6 @@ const App: React.FC = () => {
             <button onClick={() => setState(prev => ({ ...prev, step: 'library' }))} className="text-sm font-semibold text-slate-500 hover:text-teal-700 transition-colors">
               {t('myLibrary') || 'Personal Library'}
             </button>
-            {state.user?.is_admin && (
-              <button onClick={() => setState(prev => ({ ...prev, step: 'admin' }))} className="text-sm font-bold text-amber-600 hover:text-amber-700 transition-colors">
-                Admin
-              </button>
-            )}
           </div>
         </div>
       </header>

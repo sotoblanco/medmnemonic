@@ -1,4 +1,5 @@
 from datetime import timedelta
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,3 +42,29 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 @router.get("/me", response_model=User)
 async def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+@router.post("/guest", response_model=Token)
+async def guest_login(session: AsyncSession = Depends(get_db)):
+    guest_id = str(uuid.uuid4())
+    username = f"guest_{guest_id[:8]}"
+    email = f"{username}@medmnemonic.guest"
+    password = guest_id
+    
+    hashed_password = get_password_hash(password)
+    user_data = {
+        "username": username,
+        "email": email,
+        "hashed_password": hashed_password,
+        "is_admin": False
+    }
+    
+    try:
+        user = await crud.create_user(session, user_data)
+        
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user.username}, expires_delta=access_token_expires
+        )
+        return {"access_token": access_token, "token_type": "bearer"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Guest creation failed: {str(e)}")

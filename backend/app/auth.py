@@ -42,12 +42,15 @@ async def get_current_user(token: str = Depends(oauth2_scheme), session: AsyncSe
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
+            print("DEBUG: get_current_user failed - No username in token payload")
             raise credentials_exception
-    except JWTError:
+    except JWTError as e:
+        print(f"DEBUG: get_current_user failed - JWTError: {e}")
         raise credentials_exception
     
     user = await crud.get_user_by_username(session, username)
     if user is None:
+        print(f"DEBUG: get_current_user failed - User {username} not found in DB")
         raise credentials_exception
     
     # Convert SQLAlchemy model to dict for compatibility with existing code if needed,

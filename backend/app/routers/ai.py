@@ -22,19 +22,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from .. import prompt as prompts
+
 # Initialize client
 api_key = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key)
-
-def get_language_instruction(lang: str) -> str:
-    if lang == 'es':
-        return """
-        IMPORTANT: OUTPUT MUST BE IN SPANISH (ESPAÑOL).
-        - The internal JSON keys (like 'story', 'medicalTerm') MUST remain in English.
-        - ALL values, text, descriptions, story content, explanations, and terms MUST be in Spanish.
-        - The characters should have Spanish names or names that make sense in a Spanish pun context.
-        """
-    return "Provide all output in English."
 
 @router.post("/generate/mnemonic", response_model=MnemonicResponse)
 async def generate_mnemonic(request: GenerateMnemonicRequest):
@@ -58,29 +50,17 @@ async def generate_mnemonic(request: GenerateMnemonicRequest):
     else:
         parts.append(types.Part.from_text(text=request.text))
 
-    prompt = f"""
-    Act as an expert medical educator (like Picmonic or SketchyMedical).
-    {get_language_instruction(request.language)}
-    
-    1. Analyze the input to extract high-yield medical facts, dosages, symptoms, and treatments.
-    2. Create a wacky, memorable mnemonic story to explain these facts. 
-       - Use sound-alike characters (e.g., 'Macrolide' -> 'Macaroni Slide').
-       - Keep language simple and narrative.
-       - The tone should be humorous and absurd.
-    3. List the associations between characters and medical terms.
-    4. Create a visual prompt for an illustration of this story.
-
-    Output a single JSON object.
-    """
-    parts.append(types.Part.from_text(text=prompt))
+    prompt_text = prompts.get_mnemonic_prompt(request.language)
+    parts.append(types.Part.from_text(text=prompt_text))
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=prompts.MODEL_FLASH,
             contents=[types.Content(parts=parts)],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=MnemonicResponse
+                response_schema=MnemonicResponse,
+                thinking_config=types.ThinkingConfig(thinking_level="high")
             )
         )
         
@@ -96,20 +76,7 @@ async def generate_mnemonic(request: GenerateMnemonicRequest):
 
 @router.post("/generate/story")
 async def regenerate_story(request: RegenerateStoryRequest):
-    facts_str = "\n".join([f"- {f}" for f in request.facts])
-    prompt = f"""
-    {get_language_instruction(request.language)}
-    Topic: {request.topic}
-    Facts:
-    {facts_str}
-
-    Based on these SPECIFIC facts, generate:
-    1. A wacky mnemonic story.
-    2. The list of associations.
-    3. A visual prompt for the image.
-    
-    Maintain the humorous, mnemonic style.
-    """
+    prompt_text = prompts.get_regenerate_story_prompt(request.topic, request.facts, request.language)
     
     try:
         # We need a partial schema here.
@@ -140,11 +107,12 @@ async def regenerate_story(request: RegenerateStoryRequest):
         }
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=prompts.MODEL_FLASH,
             contents=[types.Content(parts=[types.Part.from_text(text=prompt)])],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=schema
+                response_schema=schema,
+                thinking_config=types.ThinkingConfig(thinking_level="high")
             )
         )
         
@@ -156,19 +124,18 @@ async def regenerate_story(request: RegenerateStoryRequest):
 @router.post("/generate/visual-prompt", response_model=RegenerateVisualPromptResponse)
 async def regenerate_visual_prompt(request: RegenerateVisualPromptRequest):
     # This one expects text output
-    prompt = f"""
-    Topic: {request.topic}
-    Story: {request.story}
-    Associations: {json.dumps([a.dict() for a in request.associations])}
-
-    Create a highly detailed visual description (visual prompt) for an image generator to illustrate this story in a cartoon/mnemonic style. 
-    Focus on visual clarity of the characters.
-    """
+    # Convert associations to list of dicts if they are objects
+    associations_dicts = [a.dict() for a in request.associations]
+    prompt_text = prompts.get_regenerate_visual_prompt_prompt(request.topic, request.story, associations_dicts)
+    
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[types.Content(parts=[types.Part.from_text(text=prompt)])],
-            config=types.GenerateContentConfig(response_mime_type="text/plain")
+            model=prompts.MODEL_VISUAL_PROMPT,
+            contents=[types.Content(parts=[types.Part.from_text(text=prompt_text)])],
+            config=types.GenerateContentConfig(
+                response_mime_type="text/plain",
+                thinking_config=types.ThinkingConfig(thinking_level="high")
+            )
         )
         return RegenerateVisualPromptResponse(visualPrompt=response.text)
     except Exception as e:
@@ -180,10 +147,7 @@ async def generate_image(request: GenerateImageRequest):
     # or translate it. Modern models handle Spanish prompts well.
     # We add a style instruction.
     
-    enhanced_prompt = f"""A vivid, cartoon-style educational illustration. 
-    Subject: {request.visualPrompt}. 
-    Style: Hand-drawn animation style, bright colors, bold outlines, caricature-like characters, humorous, clear visual metaphors. 
-    Composition: A single cohesive scene. High quality, detailed."""
+    enhanced_prompt = prompts.get_image_generation_prompt(request.visualPrompt)
     
     try:
         # Verify model name for image generation
@@ -197,22 +161,24 @@ async def generate_image(request: GenerateImageRequest):
         # Let's check imports. `from google import genai`
         # client.models.generate_images(...)
         
-        response = client.models.generate_images(
-            model='imagen-4.0-generate-001', # Common default
-            prompt=enhanced_prompt,
-            config=types.GenerateImagesConfig(
-                number_of_images=1,
-                aspect_ratio="4:3"
+        response = client.models.generate_content(
+            model=prompts.MODEL_IMAGE_GEN,
+            contents=enhanced_prompt,
+            config=types.GenerateContentConfig(
+                image_config=types.ImageConfig(
+                    aspect_ratio="4:3",
+                    image_size="4K"
+                )
             )
         )
         
-        if response.generated_images:
-            img = response.generated_images[0]
-            # It usually returns bytes or b64
-            # SDK v1 returned image objects. v2 properties...
-            # image.image_bytes
-            b64_img = base64.b64encode(img.image.image_bytes).decode('utf-8')
-            return GenerateImageResponse(imageData=f"data:image/png;base64,{b64_img}")
+        # Gemini 3 content generation response parsing for images
+        image_parts = [part for part in response.parts if part.inline_data]
+        if image_parts:
+             img_part = image_parts[0]
+             # Assuming inline_data.data is bytes
+             b64_img = base64.b64encode(img_part.inline_data.data).decode('utf-8')
+             return GenerateImageResponse(imageData=f"data:image/png;base64,{b64_img}")
             
         raise Exception("No image generated")
 
@@ -234,35 +200,25 @@ async def analyze_bounding_boxes(request: AnalyzeImageRequest):
             for a in request.associations
         ])
         
-        prompt = f"""
-        You are an expert visual analyzer for medical mnemonic illustrations.
-        
-        Task: Identify the 2D bounding box for the specific characters listed below in the provided image.
-        
-        List of Targets:
-        {targets_desc}
-
-        Instructions:
-        1. Analyze the image to locate the character described. Use the "Visual Description/Context" to disambiguate if necessary.
-        2. Return the bounding box [ymin, xmin, ymax, xmax] (scale 0-100) for each character found.
-        3. If a character is not found, omit it from the list or return 0,0,0,0.
-        
-        Output Format:
-        Return a JSON array of objects. Each object must have:
-        - 'character': The exact "Target Character" name.
-        - 'box_2d': [ymin, xmin, ymax, xmax].
-        """
+        prompt_text = prompts.get_bbox_analysis_prompt(targets_desc)
         
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=prompts.MODEL_FLASH,
             contents=[
                 types.Content(parts=[
-                    types.Part.from_bytes(data=base64.b64decode(clean_base64), mime_type="image/png"),
-                    types.Part.from_text(text=prompt)
+                    types.Part(
+                        inline_data=types.Blob(
+                             data=base64.b64decode(clean_base64), 
+                             mime_type="image/png"
+                        ),
+                        media_resolution=types.MediaResolution(level="media_resolution_high")
+                    ),
+                    types.Part.from_text(text=prompt_text)
                 ])
             ],
             config=types.GenerateContentConfig(
-                response_mime_type="application/json"
+                response_mime_type="application/json",
+                thinking_config=types.ThinkingConfig(thinking_level="high")
             )
         )
         
@@ -293,31 +249,16 @@ async def generate_quiz(request: GenerateQuizRequest):
     {associations_str}
     """
     
-    prompt = f"""
-    {get_language_instruction(request.language)}
-    Generate a challenging multiple-choice quiz based on the provided associations for a medical student audience.
-    
-    For each association listed above:
-    1. Create a question that tests understanding of the medical concept.
-       - Do NOT just ask "What does this character represent?".
-       - Instead, ask about the *implication* of the fact (e.g., "What is the mechanism of action associated with this symbol?" or "What clinical presentation does this character signify?", "What is the treatment indicated by this symbol?").
-       - If the association is simple, ask a second-order question related to that fact.
-    2. Provide 4 options: 
-       - 1 correct answer (the medical concept or fact).
-       - 3 plausible, tricky medical distractors. These should be real medical terms or concepts that might be confused with the correct answer. Do not use obvious fillers.
-    3. Ensure the 'correctOptionIndex' points to the right answer (0-3).
-    4. Provide a brief explanation.
-
-    Generate questions for ALL associations.
-    """
+    prompt_text = prompts.get_quiz_prompt(context, request.language)
     
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[types.Content(parts=[types.Part.from_text(text=context), types.Part.from_text(text=prompt)])],
+            model=prompts.MODEL_FLASH,
+            contents=[types.Content(parts=[types.Part.from_text(text=context), types.Part.from_text(text=prompt_text)])],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=QuizList
+                response_schema=QuizList,
+                thinking_config=types.ThinkingConfig(thinking_level="high")
             )
         )
         
@@ -362,10 +303,11 @@ async def generate_speech(request: GenerateSpeechRequest):
     # We will try to map this.
     
     try:
+        text_to_read = prompts.get_speech_prompt(request.text, request.language)
         response = client.models.generate_content(
-            model="gemini-2.5-flash-preview-tts", # Experimental often has modalities
+            model=prompts.MODEL_TTS, # Experimental often has modalities
             contents=[types.Content(parts=[
-                types.Part.from_text(text=f"Read the following aloud in a warm, friendly and engaging tone ({'Spanish' if request.language == 'es' else 'English'}): {request.text}")
+                types.Part.from_text(text=text_to_read)
             ])],
             config=types.GenerateContentConfig(
                 response_modalities=["AUDIO"],

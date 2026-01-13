@@ -165,3 +165,17 @@ class Playlist(PlaylistBase):
     createdAt: int
     story_ids: List[str] = []
 
+
+# --- Admin Models ---
+class AdminChatRequest(BaseModel):
+    message: str
+    history: List[dict] = [] # List of {role: "user"|"model", parts: [...]}
+    context_topic: Optional[str] = None
+    context_concept: Optional[str] = None
+
+class AdminChatResponse(BaseModel):
+    response: str
+    thought_process: Optional[str] = None
+
+class SavePublicMnemonicRequest(BaseModel):
+    mnemonicData: MnemonicResponse
